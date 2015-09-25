@@ -1,0 +1,387 @@
+PackratFormat: 1.4
+PackratVersion: 0.4.4
+RVersion: 3.2.1
+Repos: CRAN=http://cran.rstudio.com/,
+    BioCsoft=http://bioconductor.org/packages/3.2/bioc,
+    BioCann=http://bioconductor.org/packages/3.2/data/annotation,
+    BioCexp=http://bioconductor.org/packages/3.2/data/experiment,
+    BioCextra=http://bioconductor.org/packages/3.2/extra
+
+Package: AnnotationDbi
+Source: CRAN
+Version: 1.31.17
+Requires: BiocGenerics, DBI, Biobase, S4Vectors, RSQLite, IRanges
+
+Package: BH
+Source: CRAN
+Version: 1.58.0-1
+Hash: 4f6db3b5311bb006f536a2e67278d058
+
+Package: BSgenome
+Source: CRAN
+Version: 1.37.2
+Requires: BiocGenerics, S4Vectors, IRanges, GenomeInfoDb, XVector,
+    Biostrings, GenomicRanges, Rsamtools, rtracklayer
+
+Package: Biobase
+Source: CRAN
+Version: 2.29.1
+Requires: BiocGenerics
+
+Package: BiocGenerics
+Source: CRAN
+Version: 0.15.3
+
+Package: BiocInstaller
+Source: CRAN
+Version: 1.19.6
+
+Package: BiocParallel
+Source: CRAN
+Version: 1.3.29
+Requires: snow, futile.logger
+
+Package: Biostrings
+Source: CRAN
+Version: 2.37.2
+Requires: BiocGenerics, zlibbioc, S4Vectors, IRanges, XVector
+
+Package: DBI
+Source: CRAN
+Version: 0.3.1
+
+Package: Formula
+Source: CRAN
+Version: 1.2-1
+
+Package: GGally
+Source: CRAN
+Version: 0.5.0
+Requires: gtable, plyr, stringr, reshape, ggplot2
+
+Package: GenomeInfoDb
+Source: CRAN
+Version: 1.5.8
+Requires: BiocGenerics, S4Vectors, IRanges
+
+Package: GenomicAlignments
+Source: CRAN
+Version: 1.5.11
+Requires: BiocGenerics, S4Vectors, IRanges, BiocParallel, GenomeInfoDb,
+    Biostrings, GenomicRanges, Rsamtools, SummarizedExperiment
+
+Package: GenomicFeatures
+Source: CRAN
+Version: 1.21.13
+Requires: BiocGenerics, DBI, Biobase, S4Vectors, RSQLite, RCurl,
+    IRanges, AnnotationDbi, GenomeInfoDb, biomaRt, Biostrings,
+    GenomicRanges, rtracklayer
+
+Package: GenomicRanges
+Source: CRAN
+Version: 1.21.16
+Requires: BiocGenerics, S4Vectors, IRanges, GenomeInfoDb, XVector
+
+Package: Hmisc
+Source: CRAN
+Version: 3.16-0
+Requires: Formula, acepack, gridExtra, gtable, proto, latticeExtra,
+    scales, ggplot2
+
+Package: IRanges
+Source: CRAN
+Version: 2.3.13
+Requires: BiocGenerics, S4Vectors
+
+Package: OrganismDbi
+Source: CRAN
+Version: 1.11.41
+Requires: BiocGenerics, BiocInstaller, Biobase, S4Vectors, graph,
+    RSQLite, IRanges, RBGL, AnnotationDbi, GenomicRanges,
+    GenomicFeatures
+
+Package: R6
+Source: CRAN
+Version: 2.0.1
+Hash: 40dff191bf683de95a0b131f9509647e
+
+Package: RBGL
+Source: CRAN
+Version: 1.45.1
+Requires: graph
+
+Package: RColorBrewer
+Source: CRAN
+Version: 1.1-2
+
+Package: RCurl
+Source: CRAN
+Version: 1.95-4.7
+Requires: bitops
+
+Package: RSQLite
+Source: CRAN
+Version: 1.0.0
+Requires: DBI
+
+Package: Rcpp
+Source: CRAN
+Version: 0.11.6
+
+Package: Rsamtools
+Source: CRAN
+Version: 1.21.11
+Requires: BiocGenerics, bitops, zlibbioc, S4Vectors, IRanges,
+    BiocParallel, GenomeInfoDb, XVector, Biostrings, GenomicRanges
+
+Package: S4Vectors
+Source: CRAN
+Version: 0.7.9
+Requires: BiocGenerics
+
+Package: ShortRead
+Source: Bioconductor
+Version: 1.27.4
+Requires: Biobase, BiocGenerics, BiocParallel, Biostrings,
+    GenomeInfoDb, GenomicAlignments, GenomicRanges, IRanges, Rsamtools,
+    S4Vectors, XVector, hwriter, latticeExtra, zlibbioc
+Hash: c5c4fd56951cae44377326c85e74218d
+
+Package: SummarizedExperiment
+Source: CRAN
+Version: 0.3.1
+Requires: BiocGenerics, Biobase, S4Vectors, IRanges, GenomeInfoDb,
+    GenomicRanges
+
+Package: VariantAnnotation
+Source: CRAN
+Version: 1.15.16
+Requires: BiocGenerics, DBI, zlibbioc, Biobase, S4Vectors, IRanges,
+    AnnotationDbi, GenomeInfoDb, XVector, Biostrings, GenomicRanges,
+    Rsamtools, SummarizedExperiment, rtracklayer, BSgenome,
+    GenomicFeatures
+
+Package: XML
+Source: CRAN
+Version: 3.98-1.3
+
+Package: XVector
+Source: CRAN
+Version: 0.9.1
+Requires: BiocGenerics, S4Vectors, IRanges
+
+Package: acepack
+Source: CRAN
+Version: 1.3-3.3
+
+Package: assertthat
+Source: CRAN
+Version: 0.1
+Hash: 0afb92b59b02593c70ff8046700ba9d3
+
+Package: biomaRt
+Source: CRAN
+Version: 2.25.1
+Requires: XML, RCurl, AnnotationDbi
+
+Package: biovizBase
+Source: CRAN
+Version: 1.17.1
+Requires: BiocGenerics, RColorBrewer, dichromat, S4Vectors, IRanges,
+    scales, AnnotationDbi, GenomeInfoDb, Biostrings, GenomicRanges,
+    Hmisc, Rsamtools, SummarizedExperiment, GenomicAlignments,
+    GenomicFeatures, VariantAnnotation
+
+Package: bitops
+Source: CRAN
+Version: 1.0-6
+
+Package: colorspace
+Source: CRAN
+Version: 1.2-6
+
+Package: dichromat
+Source: CRAN
+Version: 2.0-0
+
+Package: digest
+Source: CRAN
+Version: 0.6.8
+
+Package: dplyr
+Source: CRAN
+Version: 0.4.2
+Requires: BH, DBI, R6, Rcpp, assertthat, lazyeval, magrittr
+Hash: 836b8d0eab1b3038ece1ab5d179b6d0f
+
+Package: evaluate
+Source: CRAN
+Version: 0.7
+Requires: stringr
+Hash: a60973dc1469b851e9b099b7e47043b5
+
+Package: faradr
+Source: source
+Version: 0.1.3
+Requires: Biostrings, GenomicAlignments, IRanges, ShortRead, dplyr,
+    ggbio, ggplot2, reshape2, stringr
+Hash: 4422254411feb347835de2cb1d55378c
+SourcePath: /zfs/datastore0/software/github_local//faradr
+
+Package: formatR
+Source: CRAN
+Version: 1.2
+Hash: cce53206179a99ae5a8bcf154ab5abde
+
+Package: futile.logger
+Source: CRAN
+Version: 1.4.1
+Requires: futile.options, lambda.r
+
+Package: futile.options
+Source: CRAN
+Version: 1.0.0
+
+Package: ggbio
+Source: CRAN
+Version: 1.17.1
+Requires: BiocGenerics, gridExtra, gtable, Biobase, S4Vectors, IRanges,
+    scales, reshape2, GenomeInfoDb, ggplot2, Biostrings, GenomicRanges,
+    GGally, Hmisc, Rsamtools, SummarizedExperiment, GenomicAlignments,
+    rtracklayer, BSgenome, GenomicFeatures, OrganismDbi,
+    VariantAnnotation, biovizBase
+
+Package: ggplot2
+Source: CRAN
+Version: 1.0.1
+Requires: digest, gtable, proto, plyr, scales, reshape2
+
+Package: graph
+Source: CRAN
+Version: 1.47.2
+Requires: BiocGenerics
+
+Package: gridExtra
+Source: CRAN
+Version: 0.9.1
+
+Package: gtable
+Source: CRAN
+Version: 0.1.2
+
+Package: highr
+Source: CRAN
+Version: 0.5
+Hash: 25f9c02030b94c8154273699a7df9cf8
+
+Package: hwriter
+Source: CRAN
+Version: 1.3.2
+Hash: 4c36a3e4a7471fdc3d5ee75b5188c37d
+
+Package: knitr
+Source: CRAN
+Version: 1.10.5
+Requires: digest, evaluate, formatR, highr, markdown, stringr, yaml
+Hash: 3734733a01c3a749fcf26a6c9adfb8e4
+
+Package: labeling
+Source: CRAN
+Version: 0.3
+
+Package: lambda.r
+Source: CRAN
+Version: 1.1.7
+
+Package: latticeExtra
+Source: CRAN
+Version: 0.6-26
+Requires: RColorBrewer
+
+Package: lazyeval
+Source: CRAN
+Version: 0.1.10
+Hash: 9679f1ac7f6bc07bc79755f34cd15e1f
+
+Package: magrittr
+Source: CRAN
+Version: 1.5
+
+Package: markdown
+Source: CRAN
+Version: 0.7.7
+Requires: mime
+Hash: fea2343a1119d61b0cc5c0a950d103a3
+
+Package: mime
+Source: CRAN
+Version: 0.3
+Hash: 629133973445ad75e5438a2bb6b05c17
+
+Package: munsell
+Source: CRAN
+Version: 0.4.2
+Requires: colorspace
+
+Package: packrat
+Source: CRAN
+Version: 0.4.4
+Hash: aed7d17407538df551a57caf6289c8bf
+
+Package: plyr
+Source: CRAN
+Version: 1.8.3
+Requires: Rcpp
+
+Package: proto
+Source: CRAN
+Version: 0.3-10
+
+Package: reshape
+Source: CRAN
+Version: 0.8.5
+Requires: plyr
+
+Package: reshape2
+Source: CRAN
+Version: 1.4.1
+Requires: Rcpp, plyr, stringr
+
+Package: rtracklayer
+Source: CRAN
+Version: 1.29.11
+Requires: BiocGenerics, XML, zlibbioc, S4Vectors, RCurl, IRanges,
+    GenomeInfoDb, XVector, Biostrings, GenomicRanges, Rsamtools,
+    GenomicAlignments
+
+Package: scales
+Source: CRAN
+Version: 0.2.5
+Requires: RColorBrewer, Rcpp, dichromat, labeling, plyr, munsell
+
+Package: snow
+Source: CRAN
+Version: 0.3-13
+
+Package: stringi
+Source: CRAN
+Version: 0.5-5
+
+Package: stringr
+Source: CRAN
+Version: 1.0.0
+Requires: magrittr, stringi
+
+Package: xtable
+Source: CRAN
+Version: 1.7-4
+Hash: 30ed90ebdd90a529aab31fd6792a8d61
+
+Package: yaml
+Source: CRAN
+Version: 2.1.13
+Hash: 4854ccabebc225e8a7309fb4a74980de
+
+Package: zlibbioc
+Source: CRAN
+Version: 1.15.0

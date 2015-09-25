@@ -1,0 +1,294 @@
+########################################################################
+#  microRNA mapping and counting workflow file
+#  protocol specified in /zfs/datastore0/group_root/MAD-RBAB/
+#     10_Protocols/DryLab/NGS_protocols/NGS_protocols_parameters_v3.xlsx
+########################################################################
+
+import os
+from snakemake.utils import R
+
+########################################################################
+#   Parameters of the workflow  
+########################################################################
+
+
+#location of the miRNA sequences and their annotation (downloaded from mirbase)
+miRNAfasta  = "../../Scratch/miRNAin/mirna_hsa.fa"
+miRNAgff    = "../../Scratch/miRNAin/mirna_hsa.gff3"
+
+#Location of the project can be absolute of
+#relative with regard to location of snakefile 
+#We assume mad experiments with Scratch and Result 
+#directories
+PROJECT_DIR = "../.." 
+
+# Location of the input files and sample names 
+FQ_DIR = PROJECT_DIR+"/Scratch/raw"
+SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+
+# reference spike in sequences for small RNA experiments
+SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/SSPK_v3"
+
+
+DIR_E = ".dexist"
+PP_PACKRAT = "/zfs/datastore0/software/pipeline_packrat/WF_mapping/01"
+
+RESULTS_DIR = PROJECT_DIR+"/Results/miRNAmapping"
+SCRATCH_DIR = PROJECT_DIR+"/Scratch/miRNAmapping"
+MAP_DIR     = SCRATCH_DIR+"/mapped"
+SPIKE_DIR   = SCRATCH_DIR+"/spike"
+NOSPIKE_DIR = SCRATCH_DIR+"/nospike"
+MIRNADB_DIR = SCRATCH_DIR+"/miRNAdb"
+
+REPORT_FILE = os.path.join(RESULTS_DIR,"miRNAmappingLog.txt")
+
+REFERENCE_SMALLDERIVED = os.path.join(MIRNADB_DIR,"smallderived")
+REFERENCE_ALLMATURE    = os.path.join(MIRNADB_DIR,"allmature")
+REFERENCE_PREMATURE    = os.path.join(MIRNADB_DIR,"premature")
+
+BOWTIE_PARAMS_SHR    = " -L 6 -i S,0,0.5 --norc  --rdg 1,6 --rfg 1,6 -p 8 "
+BOWTIE_PARAMS_SPIKE  = BOWTIE_PARAMS_SHR + " --score-min L,-1,-0.6 "  
+BOWTIE_PARAMS_MIRNA  = BOWTIE_PARAMS_SHR + " --score-min L,-0.0,-0.8 "
+
+
+########################################################################
+#                            rules 
+########################################################################
+rule all:
+    input: 
+       ("{spath}/{sample}_small2smallderived_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
+       ("{spath}/{sample}_large2premature_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
+       ("{spath}/{sample}_medium2allmature_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
+       os.path.join(RESULTS_DIR,"CountTable_norm_spike.txt"),
+       os.path.join(RESULTS_DIR,"norm_count.png"),
+       os.path.join(RESULTS_DIR,"FractionCounts.txt"),
+       os.path.join(RESULTS_DIR,"total_reads.csv"),
+       os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
+       os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
+       os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt")
+    message: "All requested output files ready." 
+
+########################################################################
+rule compile_counts:
+  input:  
+     large  = ("{spath}/{sample}_large2premature_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES),
+     medium = ("{spath}/{sample}_medium2allmature_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES),
+     small  = ("{spath}/{sample}_small2smallderived_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES)
+  output: 
+     small  = os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
+     medium = os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
+     large  = os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt")
+  message: "Combine count tables for samples into single table"
+  run: R("""
+         require(faradr);
+         CombineCountTables("{MAP_DIR}", "{output.small}" , "_small2smallderived_counts.txt");
+         CombineCountTables("{MAP_DIR}", "{output.medium}", "_medium2allmature_counts.txt");
+         CombineCountTables("{MAP_DIR}", "{output.large}" , "_large2premature_counts.txt");
+         """)    
+
+########################################################################
+rule copy_mapping_counts_to_results: 
+    input: os.path.join(MAP_DIR,"{s}_counts.txt")
+    output: os.path.join(RESULTS_DIR,"{s}_counts.txt")
+    message: "copying {wildcards.s} to results"
+    shell: "cp {input} {output} "
+
+########################################################################
+rule indexstats:
+    input: "{sample}_sorted.bam"
+    output: "{sample}_counts.txt"
+    message: "calculate statistics on: {wildcards.sample} " 
+    shell: "samtools idxstats {input} > {output}"
+
+########################################################################
+rule sam2bam:
+    input:  "{sample}.sam"
+    output: bam = "{sample}_sorted.bam",
+            bai = "{sample}_sorted.bam.bai",
+    message: "Converting {wildcards.sample} to sorted and indexed bam"
+    shell:
+      """
+        samtools view -bS {input} > {output.bam}
+        samtools sort {output.bam} {wildcards.sample}_sorted
+        samtools index {output.bam}
+      """
+
+########################################################################
+rule map_to_miRNA:
+    input: small = os.path.join(NOSPIKE_DIR,"{sample}_small.fastq"),
+           medium = os.path.join(NOSPIKE_DIR,"{sample}_medium.fastq"),
+           large = os.path.join(NOSPIKE_DIR,"{sample}_large.fastq"),
+           smallref = REFERENCE_SMALLDERIVED+".1.bt2",
+           mediumref = REFERENCE_ALLMATURE+".1.bt2",
+           largeref = REFERENCE_PREMATURE+".1.bt2",
+           d1 = os.path.join(RESULTS_DIR,DIR_E),
+	   d2 = os.path.join(MAP_DIR,DIR_E)
+    output: small = os.path.join(MAP_DIR,"{sample}_small2smallderived.sam"),
+            large = os.path.join(MAP_DIR,"{sample}_large2premature.sam"),
+            medium = os.path.join(MAP_DIR,"{sample}_medium2allmature.sam")
+    message: "Mapping length fractions to mirna databases for {wildcards.sample}"
+    shell:
+      """
+     bowtie2 {BOWTIE_PARAMS_MIRNA} -x {REFERENCE_SMALLDERIVED} -U {input.small}  -S {output.small}  2>&1| \
+       python sRNA_tools.py call_build_report --report_header {wildcards.sample}_small  --report_file_name {REPORT_FILE} 
+     bowtie2 {BOWTIE_PARAMS_MIRNA} -x {REFERENCE_ALLMATURE}    -U {input.medium} -S {output.medium} 2>&1| \
+       python sRNA_tools.py call_build_report --report_header {wildcards.sample}_medium --report_file_name {REPORT_FILE}
+     bowtie2 {BOWTIE_PARAMS_MIRNA} -x {REFERENCE_PREMATURE}    -U {input.large}  -S {output.large}  2>&1| \
+       python sRNA_tools.py call_build_report --report_header {wildcards.sample}_large  --report_file_name {REPORT_FILE}
+      """
+
+########################################################################
+rule divide_reads: 
+    input:  os.path.join(NOSPIKE_DIR,"{sample}.fastq")
+    output: small =os.path.join(NOSPIKE_DIR,"{sample}_small.fastq"),
+            medium=os.path.join(NOSPIKE_DIR,"{sample}_medium.fastq"),
+            large =os.path.join(NOSPIKE_DIR,"{sample}_large.fastq")
+    message: "Divide {wildcards.sample} fastq file into length classes"
+    shell : 
+      """
+       cat {input} | paste - - - - |awk  '(length($2) >= 10 && length($2) < 15 )' | sed 's/\\t/\\n/g' > {output.small} 
+       cat {input} | paste - - - - |awk  '(length($2) >= 15 && length($2) <= 44)' | sed 's/\\t/\\n/g' > {output.medium} 
+       cat {input} | paste - - - - |awk  '(length($2) > 44 )'                     | sed 's/\\t/\\n/g' > {output.large} 
+      """
+
+########################################################################
+rule extract_unmapped_reads:
+     input: file = os.path.join(SPIKE_DIR,"{sample}_spike_aln.sam"),
+            d1 = os.path.join(NOSPIKE_DIR,DIR_E)
+     output: os.path.join(NOSPIKE_DIR,"{sample}.fastq")
+     message: "Extract non mapped reads from sam file and write to fastq file"
+     shell: 
+         """
+           awk '$3=="*" {{printf("@%s\\n%s\\n+%s\\n%s\\n",$1,$10,$1,$11)}}' {input.file} > {output} 
+         """
+
+########################################################################
+rule count_fractions: 
+    input: ("{sdir}/{sample}.fastq".format(sample=s,sdir=NOSPIKE_DIR) for s in SAMPLES),
+           ("{sdir}/{sample}_small.fastq".format(sample=s,sdir=NOSPIKE_DIR) for s in SAMPLES),
+           ("{sdir}/{sample}_medium.fastq".format(sample=s,sdir=NOSPIKE_DIR) for s in SAMPLES),
+           ("{sdir}/{sample}_large.fastq".format(sample=s,sdir=NOSPIKE_DIR) for s in SAMPLES)
+    output: os.path.join(RESULTS_DIR,"FractionCounts.txt")
+    message: "Counting number of reads in fractions"
+    shell:
+        """ 
+          echo "sample\ttoosmall\tsmall\tmedium\tlarge\ttotal" > {output}
+           for i in  {SAMPLES}; do 
+               ALL_CNT=$(($(cat {NOSPIKE_DIR}/${{i}}.fastq | wc -l)/4))
+               SML_CNT=$(($(cat {NOSPIKE_DIR}/${{i}}_small.fastq | wc -l)/4))
+               MED_CNT=$(($(cat {NOSPIKE_DIR}/${{i}}_medium.fastq | wc -l)/4))
+               LRG_CNT=$(($(cat {NOSPIKE_DIR}/${{i}}_large.fastq | wc -l)/4))
+               VSM_CNT=$((ALL_CNT-SML_CNT-MED_CNT-LRG_CNT))
+               echo "$i\t$VSM_CNT\t$SML_CNT\t$MED_CNT\t$LRG_CNT\t$ALL_CNT" >> {output} 
+           done  
+        """ 
+
+########################################################################
+rule spike_count_plots:
+    input: totalcount=os.path.join(RESULTS_DIR, "total_reads.csv"),
+           spikecount=os.path.join(RESULTS_DIR,"CountTable_size_spike.txt"),
+           prlr="./packrat/lib-R", 
+           prl="./packrat/lib"
+    output: countpng=os.path.join(RESULTS_DIR,"count.png"),
+            normcountpng=os.path.join(RESULTS_DIR,"norm_count.png")
+    message: "Creating spike count plots " 
+    run: R("""
+           library(faradr);
+           png(filename="{output.countpng}");
+           plot(PlotSpikeCounts("{input.spikecount}"));
+           dev.off();
+           png(filename="{output.normcountpng}");
+           plot(PlotNormalSpikeCounts("{input.spikecount}", "{input.totalcount}"));
+           dev.off();
+           """)
+             
+########################################################################
+# calculate amount of reads per sample for spike normalise plots
+rule total_reads_count:
+   input: os.path.join(RESULTS_DIR,"CountTable_size_spike.txt")
+   output: os.path.join(RESULTS_DIR, "total_reads.csv") 
+   message: "Count number of reads in each sample using wc"
+   shell: 
+       """ 
+           echo -n "" > {output} 
+           for i in  {SAMPLES}; do 
+               ALL_CNT=$(($(cat {FQ_DIR}/${{i}}.fastq | wc -l)/4))
+               echo "$i\t$ALL_CNT" >>  {output}
+           done  
+       """
+
+########################################################################
+rule spike_count:
+    input: ("{sdir}/{sample}_spike_aln_sorted.bam.bai".format(sample=s,sdir=SPIKE_DIR) for s in SAMPLES)
+    output: os.path.join(RESULTS_DIR,"CountTable_size_spike.txt"),
+            os.path.join(RESULTS_DIR,"CountTable_norm_spike.txt")
+    message: "Filtering and counting spike reads"
+    shell: 
+      """
+        python sRNA_tools.py count_spikes --basename "_spike_aln_sorted.bam"  --bam-dir {SPIKE_DIR} --count-dir {RESULTS_DIR}
+      """
+
+
+########################################################################
+#  Matlab script to create miRNA databases for mapping
+rule make_mirnadb:
+      input: fasta=miRNAfasta,
+             gff=miRNAgff,
+             d1=os.path.join(MIRNADB_DIR,DIR_E)
+      output: os.path.join(MIRNADB_DIR,"smallderived.fa"),
+              os.path.join(MIRNADB_DIR,"mature.fa"),
+              os.path.join(MIRNADB_DIR,"matureputative.fa"),
+              os.path.join(MIRNADB_DIR,"premature.fa")
+      message: "Create databases for mature premature putative classes of miRNA" 
+      shell: 
+        """ 
+          echo "makeMicroRNAdb('{input.fasta}','{input.gff}','{MIRNADB_DIR}')"  | matlab -nodisplay -nojvm
+        """ 
+
+
+########################################################################
+#  Merge mature and putative mature to single file
+rule get_allmature:
+      input:    mature=os.path.join(MIRNADB_DIR,"mature.fa"),
+                matureputative=os.path.join(MIRNADB_DIR,"matureputative.fa")
+      output:   os.path.join(MIRNADB_DIR,"allmature.fa")
+      message: "Combining mature and matureputative into allmature"
+      shell:   "cat {input.mature} {input.matureputative} > {output}"
+
+   
+########################################################################
+# Create bowtie2 index 
+rule create_bowtie_index: 
+      input:   "{seqdat}.fa"
+      output:  "{seqdat}.1.bt2","{seqdat}.2.bt2", "{seqdat}.3.bt2","{seqdat}.4.bt2","{seqdat}.rev.1.bt2","{seqdat}.rev.2.bt2"
+      message: "Creating bowtie2 index for sequence database for {wildcards.seqdat}" 
+      shell:   "bowtie2-build -f {input} {wildcards.seqdat} >> {SCRATCH_DIR}/Bowtie2-build.stdout"
+
+########################################################################
+# Align reads to spikes 
+rule aln_spikes:
+    input:   fq= os.path.join(FQ_DIR,"{sample}.fastq"),
+             d1=os.path.join(SPIKE_DIR,DIR_E)
+    output:  os.path.join(SPIKE_DIR,"{sample}_spike_aln.sam")
+    message: "Aligning reads to spike sequences."
+    shell:   "bowtie2 {BOWTIE_PARAMS_SPIKE} -x {SPIKES_REF} -U {input.fq} -S {output} " 
+
+
+########################################################################
+#   link libs so packrat does not have to download and compile everything
+rule link_packratlib:
+    input:  os.path.join(PP_PACKRAT,"{s}")
+    output: os.path.join("./packrat","{s}")
+    message: "Symlinking packrat library"
+    shell: "if [ -d {input} ] ; then ln -s {input} {output};  fi"
+
+########################################################################
+# create_dir not only creates the directory but also touches a file in the directory.
+# The file can be used to check if the directory exists in a rule input.  Setting 
+# the directory itself as input to a rule will  cause unneeded rule excution as the 
+# file-time of the directory is updated if a file is created in the directory 
+rule create_dir:
+    output:  os.path.join("{s}",DIR_E)
+    message: "Create directory {wildcards.s}"
+    shell:   "mkdir -p {wildcards.s}; touch {output} " 
+

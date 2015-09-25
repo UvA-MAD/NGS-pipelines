@@ -1,0 +1,152 @@
+Small RNA sequencing QC module
+========================================================
+
+```{r include=FALSE}
+# import all required packages
+require(knitr)
+require(faradr)
+require(ShortRead)
+require(xtable)
+require(ggplot2)
+require(stringr)
+```
+
+```{r echo=FALSE}
+# source data
+fq.pattern <- ".f(ast)?q"
+```
+
+```{r loading, echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+# read in design file into a dataframe
+design.table <- read.csv(design.file, sep="\t")
+design.table <- data.frame(apply(design.table, 2, as.factor))
+# ignore the fact of having same sample in multiple runs
+names(design.table) <- tolower(names(design.table))
+design.table <- design.table[ , names(design.table) != "runid"]
+design.table <- design.table[!duplicated(design.table), ]
+
+# Load fastq files for use in subsequent visualisations
+sample.files <- list.files(fq.path, fq.pattern)
+
+fqc <- qa(fq.path, fq.pattern, type="fastq")
+
+# calculate ShortRead's qa 
+samples <- sapply(sample.files, function(f) {
+  fqs <-  FastqSampler(file.path(fq.path, f), n=1e6)
+  s <- yield(fqs)
+  close(fqs)
+  return(s)
+})
+
+# drop file extension from sample names
+sample.names <- names(samples)
+sample.names <- str_replace(sample.names, "\\.f(ast)?q", "")
+names(samples) <- sample.names
+```
+
+## Design table
+```{r design-table, echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE, results='asis'}
+print(xtable(design.table), include.rownames=FALSE, type="html")
+```
+
+## Number of Reads Across Samples
+```{r Aplot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+a <- Aplot(fqc)
+print(a)
+```
+
+### grouping by experiment factors
+```{r A.design.plot, echo=FALSE, results='asis', warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+ad <- A.design.plot(fqc, design.table)
+for (n in names(ad)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(ad[[n]])
+}
+```
+
+## Read Length Distribution
+```{r B1plot, echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+b1 <- B1plot(samples)
+print(b1)
+```
+
+### grouping by experiment factors
+```{r B1.design.plot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+b1d <- B1.design.plot(samples, design.table)
+for (n in names(b1d)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(b1d[[n]])
+}
+
+```
+
+## Read Fraction of Length
+```{r B2plot, echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+b2 <- B2plot(samples)
+print(b2)
+```
+
+### grouping by experiment factors
+```{r B2.design.plot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+b2d <- B2.design.plot(samples, design.table)
+for (n in names(b2d)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(b2d[[n]])
+}
+```
+## Mean Read Quality Distribution Across Samples
+```{r C1plot, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, dpi=110}
+c1 <- C1plot(samples)
+print(c1)
+```
+
+### grouping by experiment factors
+```{r C1.design.plot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+c1d <- C1.design.plot(samples, design.table)
+for (n in names(c1d)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(c1d[[n]])
+}
+```
+
+## Mean Quality Along the Read
+```{r C2plot, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, dpi=110}
+c2 <- C2plot(samples)
+print(c2)
+```
+
+### grouping by experiment factors
+```{r C2.design.plot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+c2d <- C2.design.plot(samples, design.table)
+for (n in names(c2d)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(c2d[[n]])
+}
+```
+
+## Fraction of Reads with Selected Qualities
+```{r C3plot, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, dpi=110}
+c3 <- C3plot(fqc, samples)
+print(c3)
+```
+
+### grouping by experiment factors
+```{r C3.design.plot, echo=FALSE, results="asis", warning=FALSE, message=FALSE, cache=FALSE, dpi=110}
+c3d <- C3.design.plot(samples, fqc, design.table)
+for (n in names(c3d)) {
+    cat("\n#### Grouping by ", n, "\n")
+    plot(c3d[[n]])
+}
+```
+
+## Base Content at 5' end
+```{r D1plot, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, dpi=110}
+d1 <- D1plot(samples)
+print(d1)
+```
+
+## Base Content at 3' end
+```{r D2plot, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, dpi=110}
+d2 <- D2plot(samples)
+print(d2)
+```
