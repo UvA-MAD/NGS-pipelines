@@ -1,3 +1,4 @@
+# Snakefile for basicQC NGS 
 import pandas as pd
 from snakemake.utils import R
 
@@ -6,9 +7,6 @@ DESIGN_FILE = "seqdesign.txt"
 RESULT_DIR   = "../../Results/basicQC/"
 FASTQ_STORE  = "../../Scratch/raw/"
 RUN_STORE    = "/zfs/datastore0/group_root/MAD-RBAB/04_MAD-RBAB-runs/data"
-PP_PACKRAT   = "/zfs/datastore0/software/pipeline_packrat/basicQC"
-PACKRAT_LIB  = PP_PACKRAT + "/lib"
-PACKRAT_LIBR = PP_PACKRAT + "/lib-R"
 
 KNIT_BASE = "basicQC"
 RMD_FILE = KNIT_BASE + ".Rmd"
@@ -19,13 +17,21 @@ KNIT_FIGDIR = RESULT_DIR+"figure/"
 #  get sample names from design file
 if  not os.path.exists(DESIGN_FILE):
      sys.exit("Design file "+DESIGN_FILE+" does not exist")
+
 df = pd.read_csv(DESIGN_FILE, sep="\t")
 colnames = list(df.columns)
 colnames[0] = colnames[0].lower()
 df.columns = colnames
-SAMPLES = [str(sample) for sample in list(set(df['sampleid']))]
-FASTQS = [ FASTQ_STORE + s + ".fastq" for s in SAMPLES]
 
+if not 'sampleid' in colnames: 
+     sys.exit("Design file "+DESIGN_FILE+" does not contain << sampleid >> column")
+
+if not df['sampleid'].dtype == 'O': 
+     sys.exit("No numeric sample-id's allowed update designfile: "+DESIGN_FILE)
+ 
+SAMPLES = [str(sample) for sample in list(set(df['sampleid']))]
+
+FASTQS = [ FASTQ_STORE + s + ".fastq" for s in SAMPLES]
 
 rule all:
     input: HTML_FILE
@@ -41,7 +47,7 @@ rule bootstrap:
            """)
 
 rule knit:
-    input: FASTQS, './packrat/lib', './packrat/lib-R'
+    input: FASTQS
     output: md=MD_FILE,imgdir=KNIT_FIGDIR
     message: "Knitting report"
     run: R("""
@@ -58,16 +64,3 @@ rule get_fq:
     output: FASTQS
     message: "Importing fastq from bam"
     shell: "python get_experiment_fq.py -d {DESIGN_FILE} -s {RUN_STORE} -a {FASTQ_STORE} -n 1"
-
-rule link_packratlib:
-    input: PACKRAT_LIB,  
-    output: './packrat/lib'
-    message: "Symlinking packrat library (lib) "
-    shell: "if [ -d {input} ] ; then ln -s {input} {output};  fi"
-
-rule link_packratlibr:
-    input: PACKRAT_LIBR,  
-    output: './packrat/lib-R'
-    message: "Symlinking packrat library (lib-R)"
-    shell: "if [ -d {input} ] ; then ln -s {input} {output};  fi"
-

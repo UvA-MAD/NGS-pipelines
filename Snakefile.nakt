@@ -1,9 +1,56 @@
-# Snakefile for mRNA in Prokaryotes 
+#!/bin/bash
+# 2015-03-03
+# Author: Oskar Bruning, o.bruning@uva.nl
+# Title: Mapping merged BAM file with TMAP
+# Reads are mapped using tmap-4.2.18
+# bam files are filtered first on read length of 50 nt
+# --> try to write alignments to compressed bam directly
+#==========================================================================================
+
+# go to the right location
+cd /zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1/Scratch
+
+# location of the reference database
+db=/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/S_lycopersicum_chromosomes.2.50.fa
+
+# tmap index -f $db
+
+# fixate working folder
+base_dir=/zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1/Scratch
+
+# create output folders
+mkdir $base_dir/bam_filtering
+mkdir $base_dir/mapping_results
+mkdir $base_dir/mapping_sorting
+
+# select the barcodes
+declare -a barcode=("001" "002" "003" "004" "005" "006" "007" "008" "009" "010" "011" "012" "013" "014" "015" "016" "017" "018" "019" "020" "021" "022" "023" "024" "025" "026" "027" "028" "029" "030" "031" "032" "033" "034" "035" "036" "037" "038" "039" "040" "041" "042" "043" "044" "045" "046" "047" "048" "049" "050" "051" "052" "053" "054" "055" "056" "057" "058" "059" "060" "061" "062" "063" "064" "065" "066" "067" "068" "069" "070" "071" "072" "073" "074" "075" "076" "077" "078" "079" "080" "081" "082" "083" "084" "085" "086" "087" "088" "089" "090" "091" "092" "093" "094" "095")
+
+# loop for filtering out reads < 50 and mapping resulting reads to SL 2.50 reference 
+for i in "${barcode[@]}"
+do
+ bamutils filter ./bam_merging/Merged$i.bam  ./bam_filtering/Filtered$i.bam  -minlen 50
+ tmap mapall -f $db -r ./bam_filtering/Filtered$i.bam -i bam -s ./mapping_results/$i"_"SL2.50.bam -g 3 -a 1 -o 1 -n 28 -v stage1 map1 map2 map3
+done
+
+# sort, index and generate stats for the mapped bam files
+for i in "${barcode[@]}"
+do
+ samtools sort -@ 20 -m 20G ./mapping_results/$i"_"SL2.50.bam ./mapping_sorting/$i"_"SL2.50"_"sorted
+ samtools index ./mapping_sorting/$i"_"SL2.50"_"sorted.bam
+ samtools idxstats ./mapping_sorting/$i"_"SL2.50"_"sorted.bam >> Stats.txt
+ samtools flagstat ./mapping_sorting/$i"_"SL2.50"_"sorted.bam >> Stats.txt
+done
+
+
+
+
+# Snakefile for mRNA in Procaryotes 
 import os
 from snakemake.utils import R
 
 # species for which pipeline is run
-SPEC = "bsu"
+SPEC = "sly"
 
 PRJ_DIR="../../"
 

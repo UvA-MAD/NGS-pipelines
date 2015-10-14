@@ -31,7 +31,6 @@ SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/SSPK_v3"
 
 
 DIR_E = ".dexist"
-PP_PACKRAT = "/zfs/datastore0/software/pipeline_packrat/WF_mapping/01"
 
 RESULTS_DIR = PROJECT_DIR+"/Results/miRNAmapping"
 SCRATCH_DIR = PROJECT_DIR+"/Scratch/miRNAmapping"
@@ -65,8 +64,61 @@ rule all:
        os.path.join(RESULTS_DIR,"total_reads.csv"),
        os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
-       os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt")
+       os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt"),
+       os.path.join(RESULTS_DIR,"isoforms.csv"),
+       os.path.join(RESULTS_DIR,"isoform_counttable.csv")
     message: "All requested output files ready." 
+
+
+########################################################################
+rule create_isorform_count_table:
+   input:  isoforms=os.path.join(RESULTS_DIR,"isoforms.csv"),
+           matureseqs=os.path.join(MIRNADB_DIR,"allmature.fa"),
+           mapfiles=("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
+   output:  os.path.join(RESULTS_DIR,"isoform_counttable.csv")
+   message: "Compiling count table for isoforms"
+   run: R("""
+        require(Biostrings)
+        fa <- as.character(readDNAStringSet("{input.matureseqs}"));
+        mats <- grep("putative",names(fa),invert=T)
+        fa[mats] <- substr(fa[mats],4,nchar(fa[mats])-3)
+        isomers <- read.table("{input.isoforms}",stringsAsFactors=F,header=F)
+        result <- data.frame(mirna=isomers$V2,miRNAsequence=fa[isomers$V2], isomersequence=isomers$V3,totals=isomers$V1)
+        rownames(result)=paste(result$mirna,result$isomersequence,"s",sep="_")
+
+        samplefilestring = "{input.mapfiles}"
+        sample.list = strsplit(samplefilestring," ")[[1]]
+        for (sample in sample.list) {{
+          st <- read.table(sample,stringsAsFactors=F,header=F)
+          st$id = paste(st$V1,st$V2,"s",sep="_")
+          st$one=1
+          a <- aggregate(one~id,st,sum)
+          rownames(a) <- a$id
+          samplename=gsub("/","",gsub("_mapped_medium.csv","",gsub("{MAP_DIR}","",sample)));
+          result[,samplename]  <- a[rownames(result),"one"]
+          result[is.na(result[,samplename]),samplename] <- 0
+        }}
+        write.table(result,"{output}",quote=F,row.names=F,sep="\\t")
+          """)
+
+########################################################################
+rule create_isoform_table:
+   input:   ("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
+   output:  os.path.join(RESULTS_DIR,"isoforms.csv")
+   params:   mincount=str(len(SAMPLES)*10)
+   message: "Create table of mature isoforms occuring at least {params.mincount} times."
+   shell: """
+        cat {input} |  sort | uniq -c  | awk '$1 > {params.mincount} {{print $0}}' > {output}
+          """
+
+########################################################################
+rule extract_mapped_isoforms:
+   input:   os.path.join(MAP_DIR,"{s}_medium2allmature.sam")
+   output:  os.path.join(MAP_DIR,"{s}_mapped_medium.csv")
+   message: "extracting info from sam file"
+   shell: """
+              awk 'NF > 10 && $2 != 4 {{print $3 "\\t" $10}}'  {input} > {output}
+          """
 
 ########################################################################
 rule compile_counts:
@@ -186,9 +238,7 @@ rule count_fractions:
 ########################################################################
 rule spike_count_plots:
     input: totalcount=os.path.join(RESULTS_DIR, "total_reads.csv"),
-           spikecount=os.path.join(RESULTS_DIR,"CountTable_size_spike.txt"),
-           prlr="./packrat/lib-R", 
-           prl="./packrat/lib"
+           spikecount=os.path.join(RESULTS_DIR,"CountTable_size_spike.txt")
     output: countpng=os.path.join(RESULTS_DIR,"count.png"),
             normcountpng=os.path.join(RESULTS_DIR,"norm_count.png")
     message: "Creating spike count plots " 
@@ -274,13 +324,6 @@ rule aln_spikes:
     shell:   "bowtie2 {BOWTIE_PARAMS_SPIKE} -x {SPIKES_REF} -U {input.fq} -S {output} " 
 
 
-########################################################################
-#   link libs so packrat does not have to download and compile everything
-rule link_packratlib:
-    input:  os.path.join(PP_PACKRAT,"{s}")
-    output: os.path.join("./packrat","{s}")
-    message: "Symlinking packrat library"
-    shell: "if [ -d {input} ] ; then ln -s {input} {output};  fi"
 
 ########################################################################
 # create_dir not only creates the directory but also touches a file in the directory.

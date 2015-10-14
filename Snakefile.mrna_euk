@@ -1,12 +1,13 @@
-# Snakefile for mRNA  in Eucaryotes
+# Snakefile for mRNA  in Eukaryotes
 import os
 from snakemake.utils import R
 
 # species for which pipeline is run
-SPEC = "sly"
+SPEC = "xxx"
+GENOME_DB="/xx/xx/xx.dna.genome.fa"
+TRANSCRIPTOME_DB="/xx/xx/xx.transcripts.fa"
+
 PRJ_DIR = "../.."
-GENOME_DB=PRJ_DIR+"/Scratch/SL_genome/Solanum_lycopersicum.GCA_000188115.2.28.dna.genome.fa"
-TRANSCRIPTOME_DB=PRJ_DIR+"/Scratch/SL_transcriptome/Solanum_lycopersicum_Inc02193.fa"
 
 if not os.path.exists(GENOME_DB):
      sys.exit("Pipeline configuration error: Genome database does not exist.")
@@ -26,7 +27,6 @@ SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
 SCRATCH_DIR = PRJ_DIR+"/Scratch/mapped"
 RESULT_DIR = PRJ_DIR+"/Results/mapping"
 DIR_E = ".dexist"
-PP_PACKRAT = "/zfs/datastore0/software/pipeline_packrat/WF_mapping/01"
 
 ASSEMB_DIR = SCRATCH_DIR+"/UnmappAssemb21"
 ASSEMB_HASH = 21
@@ -175,9 +175,7 @@ rule extract_unmapped:
 # make spike count plots
 rule spike_count_plots:
     input: totalcount=os.path.join(RESULT_DIR, "total_reads.csv"),
-           spikecount=os.path.join(RESULT_DIR,"CountTable_spike.txt"),
-           prlr="./packrat/lib-R",
-           prl="./packrat/lib"
+           spikecount=os.path.join(RESULT_DIR,"CountTable_spike.txt")
     output: countpng=os.path.join(RESULT_DIR,"count.png"),
             normcountpng=os.path.join(RESULT_DIR,"norm_count.png")
     run: R("""
@@ -248,13 +246,6 @@ rule trim_reads:
             awk 'BEGIN {{tlen=50; lmin=25}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
        """ 
 
-########################################################################
-#   link libs so packrat does not have to download and compile everything
-rule link_packratlib:
-    input:  os.path.join(PP_PACKRAT,"{s}")
-    output: os.path.join("./packrat","{s}")
-    message: "Symlinking packrat library"
-    shell: "if [ -d {input} ] ; then ln -s {input} {output};  fi"
 
 rule create_dir:
     output:  os.path.join("{s}",DIR_E)

@@ -1,7 +1,12 @@
 # NGS-pipelines
-MAD-RBAB Pipelines for analysis of NGS experiments. Combines en inherits material form basicQC and rnaxcount.  Usage: pick the workflow you want to run.  Edit the snakefile to set relevant variables such as databases and species.
+MAD-RBAB Pipelines for analysis of NGS experiments. Combines en inherits material form basicQC and rnaxcount.  
+**Usage**
 
-Use snakemake -s [ workflow ]  to run the workflow.
+ - Clone project in to Script directory of experiment 
+ - Pick the workflow you want to run.  
+ - Edit the snakefile to set relevant variables such as databases and species
+ - Use snakemake -s [ workflow ]  to run the workflow.
+
 Additional snakemake flags which might be useful:
 -j the number of concurrent jobs
 
