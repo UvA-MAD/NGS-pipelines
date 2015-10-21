@@ -4,8 +4,11 @@ from snakemake.utils import R
 
 DESIGN_FILE = "seqdesign.txt"
 
-RESULT_DIR   = "../../Results/basicQC/"
-FASTQ_STORE  = "../../Scratch/raw/"
+#PROJECT_DIR  = "../../"
+# Test value 
+PROJECT_DIR  = "basicQCtest2/"
+RESULT_DIR   = PROJECT_DIR+"Results/basicQC/"
+FASTQ_STORE  = PROJECT_DIR+"Scratch/raw/"
 RUN_STORE    = "/zfs/datastore0/group_root/MAD-RBAB/04_MAD-RBAB-runs/data"
 
 KNIT_BASE = "basicQC"
@@ -13,6 +16,8 @@ RMD_FILE = KNIT_BASE + ".Rmd"
 MD_FILE = RESULT_DIR+KNIT_BASE + ".md"
 HTML_FILE = RESULT_DIR+KNIT_BASE + ".html"
 KNIT_FIGDIR = RESULT_DIR+"figure/"
+DIR_E = ".dexist"
+
 
 #  get sample names from design file
 if  not os.path.exists(DESIGN_FILE):
@@ -47,8 +52,9 @@ rule bootstrap:
            """)
 
 rule knit:
-    input: FASTQS
-    output: md=MD_FILE,imgdir=KNIT_FIGDIR
+    input: FASTQS,
+           imgdir=os.path.join(KNIT_FIGDIR,DIR_E)
+    output: md=MD_FILE
     message: "Knitting report"
     run: R("""
             library(knitr);
@@ -60,7 +66,13 @@ rule knit:
            """)
 
 rule get_fq:
-    input: DESIGN_FILE, 
+    input: DESIGN_FILE
     output: FASTQS
     message: "Importing fastq from bam"
     shell: "python get_experiment_fq.py -d {DESIGN_FILE} -s {RUN_STORE} -a {FASTQ_STORE} -n 1"
+
+rule create_dir:
+    output:  os.path.join("{s}",DIR_E)
+    message: "Create directory {wildcards.s}"
+    shell:   "mkdir -p {wildcards.s}; touch {output} "
+
