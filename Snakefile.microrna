@@ -11,33 +11,38 @@ from snakemake.utils import R
 #   Parameters of the workflow  
 ########################################################################
 
+# 3 letter code used to 
+SPECIES="xxx"
 
-#location of the miRNA sequences and their annotation (downloaded from mirbase)
-miRNAfasta  = "../../Scratch/miRNAin/mirna_hsa.fa"
-miRNAgff    = "../../Scratch/miRNAin/mirna_hsa.gff3"
+if SPECIES == "xxx":
+     sys.exit("Pipeline configuration error: SPECIES variable must be set.")
 
 #Location of the project can be absolute of
 #relative with regard to location of snakefile 
 #We assume mad experiments with Scratch and Result 
 #directories
-PROJECT_DIR = "../.." 
+EXPERIMENT_DIR = "../.." 
 
 # Location of the input files and sample names 
-FQ_DIR = PROJECT_DIR+"/Scratch/raw"
+FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
 SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
 
 # reference spike in sequences for small RNA experiments
 SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/SSPK_v3"
 
-
 DIR_E = ".dexist"
 
-RESULTS_DIR = PROJECT_DIR+"/Results/miRNAmapping"
-SCRATCH_DIR = PROJECT_DIR+"/Scratch/miRNAmapping"
-MAP_DIR     = SCRATCH_DIR+"/mapped"
-SPIKE_DIR   = SCRATCH_DIR+"/spike"
-NOSPIKE_DIR = SCRATCH_DIR+"/nospike"
-MIRNADB_DIR = SCRATCH_DIR+"/miRNAdb"
+RESULTS_DIR = os.path.join(EXPERIMENT_DIR,"Results/miRNAmapping")
+SCRATCH_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/miRNAmapping")
+MAP_DIR     = os.path.join(SCRATCH_DIR,"mapped")
+SPIKE_DIR   = os.path.join(SCRATCH_DIR,"spike")
+NOSPIKE_DIR = os.path.join(SCRATCH_DIR,"nospike")
+MIRNADB_DIR = os.path.join(SCRATCH_DIR,"miRNAdb")
+
+#location of the miRNA sequences and their annotation (downloaded from mirbase)
+MIRBASE_VERSION = "21"
+miRNAfasta  = MIRNADB_DIR+"/Mirbase"+MIRBASE_VERSION+"_"+SPECIES+".fa"
+miRNAgff    = MIRNADB_DIR+"/Mirbase"+MIRBASE_VERSION+"_"+SPECIES+".gff3"
 
 REPORT_FILE = os.path.join(RESULTS_DIR,"miRNAmappingLog.txt")
 
@@ -65,24 +70,24 @@ rule all:
        os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt"),
-       os.path.join(RESULTS_DIR,"isoforms.csv"),
-       os.path.join(RESULTS_DIR,"isoform_counttable.csv")
+       os.path.join(RESULTS_DIR,"isomiRs.csv"),
+       os.path.join(RESULTS_DIR,"isomiR_counttable.csv")
     message: "All requested output files ready." 
 
 
 ########################################################################
-rule create_isorform_count_table:
-   input:  isoforms=os.path.join(RESULTS_DIR,"isoforms.csv"),
+rule create_isomiR_count_table:
+   input:  isomiRs=os.path.join(RESULTS_DIR,"isomiRs.csv"),
            matureseqs=os.path.join(MIRNADB_DIR,"allmature.fa"),
            mapfiles=("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
-   output:  os.path.join(RESULTS_DIR,"isoform_counttable.csv")
-   message: "Compiling count table for isoforms"
+   output:  os.path.join(RESULTS_DIR,"isomiR_counttable.csv")
+   message: "Compiling count table for isomiRs"
    run: R("""
         require(Biostrings)
         fa <- as.character(readDNAStringSet("{input.matureseqs}"));
         mats <- grep("putative",names(fa),invert=T)
         fa[mats] <- substr(fa[mats],4,nchar(fa[mats])-3)
-        isomers <- read.table("{input.isoforms}",stringsAsFactors=F,header=F)
+        isomers <- read.table("{input.isomiRs}",stringsAsFactors=F,header=F)
         result <- data.frame(mirna=isomers$V2,miRNAsequence=fa[isomers$V2], isomersequence=isomers$V3,totals=isomers$V1)
         rownames(result)=paste(result$mirna,result$isomersequence,"s",sep="_")
 
@@ -102,17 +107,17 @@ rule create_isorform_count_table:
           """)
 
 ########################################################################
-rule create_isoform_table:
+rule create_isomiR_table:
    input:   ("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
-   output:  os.path.join(RESULTS_DIR,"isoforms.csv")
+   output:  os.path.join(RESULTS_DIR,"isomiRs.csv")
    params:   mincount=str(len(SAMPLES)*10)
-   message: "Create table of mature isoforms occuring at least {params.mincount} times."
+   message: "Create table of mature isomiRs occuring at least {params.mincount} times."
    shell: """
         cat {input} |  sort | uniq -c  | awk '$1 > {params.mincount} {{print $0}}' > {output}
           """
 
 ########################################################################
-rule extract_mapped_isoforms:
+rule extract_mapped_isomiRs:
    input:   os.path.join(MAP_DIR,"{s}_medium2allmature.sam")
    output:  os.path.join(MAP_DIR,"{s}_mapped_medium.csv")
    message: "extracting info from sam file"
@@ -280,6 +285,13 @@ rule spike_count:
 
 
 ########################################################################
+rule get_mirbase:
+      output: miRNAfasta,
+              miRNAgff
+      message: "Downloading from MirBase"
+      shell: "./DownloadMirbase.sh {SPECIES} {MIRBASE_VERSION} {MIRNADB_DIR}"
+
+########################################################################
 #  Matlab script to create miRNA databases for mapping
 rule make_mirnadb:
       input: fasta=miRNAfasta,
@@ -334,4 +346,3 @@ rule create_dir:
     output:  os.path.join("{s}",DIR_E)
     message: "Create directory {wildcards.s}"
     shell:   "mkdir -p {wildcards.s}; touch {output} " 
-
