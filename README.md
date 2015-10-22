@@ -25,5 +25,5 @@ files
 - README.md : this file
 - sRNA_tools.py : python fuction library use in mapping and counting
 - basicQC.Rmd : Input file for basic QC markdown file
+- makeMicroRNAdb.m : matlabscript to generate data micro RNA databases.  
 - get_experiment_fq.py : script to generate fastq files per sample based on design file and bam files from run
-- .Rprofile,  packrat/init.R, packrat/packrat.lock: files in packratsetup
