@@ -5,15 +5,17 @@ from snakemake.utils import R
 EXPERIMENT_DIR = "../../"
 
 # species for which pipeline is run
-SPEC = "xxx"
+SPECIES = "xxx"
+
+# in an ideal world the database is found by species alone 
 GENOME_DB="/xx/xx/xx.dna.genome.fa"
 TRANSCRIPTOME_DB="/xx/xx/xx.transcripts.fa"
 
 if not os.path.exists(GENOME_DB):
-     sys.exit("Pipeline configuration error: Genome database does not exist.")
+   sys.exit("Pipeline configuration error: Genome database does not exist.")
 
 if not os.path.exists(TRANSCRIPTOME_DB):
-     sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
+   sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 
 # reference spikein sequences
 SEQDB="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/"
@@ -37,11 +39,11 @@ SEQ_COUNT_LOG="seq_count.txt"
 
 ########################################################################
 rule all:
-    input: (RESULT_DIR+"/{sample}_genome_cnt.txt".format(sample=s) for s in SAMPLES),
-           (RESULT_DIR+"/{sample}_transc_cnt.txt".format(sample=s) for s in SAMPLES),
-           (RESULT_DIR+"/{sample}_contigs_cnt.txt".format(sample=s) for s in SAMPLES),
-           RESULT_DIR+"/counttable.txt",
+    input: RESULT_DIR+"/ReadCounts.txt",
            RESULT_DIR+"/count.png",
+           RESULT_DIR+"/CountTable_transc.txt",
+           RESULT_DIR+"/CountTable_genome.txt",
+           RESULT_DIR+"/CountTable_contigs.txt",
            RESULT_DIR+"/assembly100.fa"
     message: "Done running mRNA pipeline"
 
@@ -54,13 +56,35 @@ rule copy_to_result:
 ########################################################################
 rule combine_readcount:
     input:  (SCRATCH_DIR+"/{sample}_readcnt.txt".format(sample=s) for s in SAMPLES)
-    output: RESULT_DIR+"/counttable.txt"
+    output: RESULT_DIR+"/ReadCounts.txt"
     message: "Combining counttables into single file"
     shell:
         """
           echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome\tcontigs\tunmapped" > {output}
           for i in {input} ; do tail -1 ${{i}}  >> {output} ; done
         """
+
+########################################################################
+rule combine_mapping_counts:
+       input:  (RESULT_DIR+"/{sample}_{mt}_cnt.txt".format(sample=s,mt="{mtype}") for s in SAMPLES)
+       output: RESULT_DIR+"/CountTable_{mtype}.txt"
+       params: samples=("{sample}".format(sample=s) for s in SAMPLES)
+       message: "Combining {wildcards.mtype} countables"
+       run: R("""
+           files=strsplit("{input}"," ")[[1]]
+           samples=strsplit("{params.samples}"," ")[[1]]
+           transc <- read.table(files[1],stringsAsFactors=F)[,2]
+           for (i in files[-1]) transc = unique(c(transc,read.table(i,stringsAsFactors=F)[,2]) )
+           transc <- sort(transc);
+           res = data.frame(Transcript=transc)
+           rownames(res) <- transc
+           for (i in 1:length(samples)) {{
+                tab = read.table(files[i],stringsAsFactors=F)
+                res[,samples[i]] = 0;
+                res[tab$V2,samples[i]] = tab$V1
+            }}
+           write.table(res,"{output}",sep="\\t",quote=F,row.names=F)
+           """)
 
 ########################################################################
 rule contig_count_table:
@@ -114,13 +138,13 @@ rule combine_unmapped:
 ########################################################################
 rule read_distribution_count:
     input: raw=os.path.join(FQ_DIR,"{sample}.fastq"),
-          trimmed=SCRATCH_DIR+"/{sample}_trimmed.fastq",
-          nspike=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
-          ntransc=SCRATCH_DIR+"/{sample}_tmap_transc_unmapped.fastq",
-          ngenome=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
-          ncontig=SCRATCH_DIR+"/{sample}_tmap_contigs_unmapped.fastq"
+           trimmed=SCRATCH_DIR+"/{sample}_trimmed.fastq",
+           nspike=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
+           ntransc=SCRATCH_DIR+"/{sample}_tmap_transc_unmapped.fastq",
+           ngenome=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
+           ncontig=SCRATCH_DIR+"/{sample}_tmap_contigs_unmapped.fastq"
     output: os.path.join(SCRATCH_DIR,"{sample}_readcnt.txt")
-    message: "Count number of reads per class for sample {wildcards.sample}. "
+    message: "Count number of reads per class for sample {wildcards.sample}."
     shell:
         """
           rc_raw=$(($(cat     {input.raw}     | wc -l)/4))

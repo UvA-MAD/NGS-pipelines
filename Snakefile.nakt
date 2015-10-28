@@ -1,14 +1,16 @@
-#!/bin/bash
+# Snakefile for genome mapping 
 # 2015-03-03
-# Author: Oskar Bruning, o.bruning@uva.nl
+# based on script by Oskar Bruning
 # Title: Mapping merged BAM file with TMAP
 # Reads are mapped using tmap-4.2.18
 # bam files are filtered first on read length of 50 nt
 # --> try to write alignments to compressed bam directly
 #==========================================================================================
 
-# go to the right location
-cd /zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1/Scratch
+EXPERIMENT_DIR= "/zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1"
+SCRATCH_DIR=EXPERIMENT_DIR+"/Scratch/mapgenome/"
+
+
 
 # location of the reference database
 db=/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/S_lycopersicum_chromosomes.2.50.fa
@@ -16,7 +18,7 @@ db=/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/S
 # tmap index -f $db
 
 # fixate working folder
-base_dir=/zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1/Scratch
+base_dir=EXPERIMENT_DIR+"Scratch"
 
 # create output folders
 mkdir $base_dir/bam_filtering
@@ -26,10 +28,44 @@ mkdir $base_dir/mapping_sorting
 # select the barcodes
 declare -a barcode=("001" "002" "003" "004" "005" "006" "007" "008" "009" "010" "011" "012" "013" "014" "015" "016" "017" "018" "019" "020" "021" "022" "023" "024" "025" "026" "027" "028" "029" "030" "031" "032" "033" "034" "035" "036" "037" "038" "039" "040" "041" "042" "043" "044" "045" "046" "047" "048" "049" "050" "051" "052" "053" "054" "055" "056" "057" "058" "059" "060" "061" "062" "063" "064" "065" "066" "067" "068" "069" "070" "071" "072" "073" "074" "075" "076" "077" "078" "079" "080" "081" "082" "083" "084" "085" "086" "087" "088" "089" "090" "091" "092" "093" "094" "095")
 
+
+rule all: 
+     input: 
+     message: "Genome mapping pipeline done" 
+
+########################################################################
+rule filter_len: 
+    input: {s}.bam
+    output: {s}_Filtered.bam
+    message: "Removing short reads" 
+    shell: "bamutils filter {input} {output} -minlen 50"
+
+
+TMAP_PARAMS = "-o 1 -n 28 -g 3 -a 1 -v stage1 map1 map2 map3"
+########################################################################
+rule tmap_genome:
+    input: bam=SCRATCH_DIR+"/{sample}_Filtered.bam",
+           db=GENOME_DB+".tmap.bwt"
+    output: SCRATCH_DIR+"/{sample}_mapped.bam"
+    message: "tmapping reads to genome"
+    shell: " tmap mapall -r {input.bam} -f {GENOME_DB} -i bam -s {output} {TMAP_PARAMS} "
+
+
+########################################################################
+rule tmap_index:
+    input: "{s}"
+    output:  "{s}.tmap.anno",
+             "{s}.tmap.bwt",
+             "{s}.tmap.pac",
+             "{s}.tmap.sa"
+     message: "Build an index for tmap"
+     shell: "tmap index -f {input} "
+
+
+
 # loop for filtering out reads < 50 and mapping resulting reads to SL 2.50 reference 
 for i in "${barcode[@]}"
 do
- bamutils filter ./bam_merging/Merged$i.bam  ./bam_filtering/Filtered$i.bam  -minlen 50
  tmap mapall -f $db -r ./bam_filtering/Filtered$i.bam -i bam -s ./mapping_results/$i"_"SL2.50.bam -g 3 -a 1 -o 1 -n 28 -v stage1 map1 map2 map3
 done
 
@@ -41,250 +77,4 @@ do
  samtools idxstats ./mapping_sorting/$i"_"SL2.50"_"sorted.bam >> Stats.txt
  samtools flagstat ./mapping_sorting/$i"_"SL2.50"_"sorted.bam >> Stats.txt
 done
-
-
-
-
-# Snakefile for mRNA in Procaryotes 
-import os
-from snakemake.utils import R
-
-# species for which pipeline is run
-SPEC = "sly"
-
-PRJ_DIR="../../"
-
-# reference spikein sequences
-SEQDB="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/"
-SPIKES_REF = SEQDB+"external/ERCC/ERCC92.fa"
-
-GENOME_DB="/xx/xx/xx.fasta"
-GENOME_ANNOT="/xx/xx/xx.gff"
-
-# directory with raw reads in fastq format
-FQ_DIR = PRJ_DIR+"/Scratch/raw/"
-SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
-
-# spike count table directory
-SCRATCH_DIR = "../../Scratch/mapped"
-RESULT_DIR = "../../Results/mapping"
-DIR_E = ".dexist"
-
-ASSEMB_DIR = SCRATCH_DIR+"/UnmappAssemb21"
-ASSEMB_HASH = 21
-
-TMAP_PARAMS = "-M 2 -O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3" 
-
-SEQ_COUNT_LOG="seq_count.txt"
-
-rule all:
-    input: (RESULT_DIR+"/{sample}_transc_cnt.txt".format(sample=s) for s in SAMPLES),
-           (RESULT_DIR+"/{sample}_readcnt.txt".format(sample=s) for s in SAMPLES),
-           (RESULT_DIR+"/{sample}_genome_cnt.txt".format(sample=s) for s in SAMPLES),
-           (RESULT_DIR+"/{sample}_contigs_cnt.txt".format(sample=s) for s in SAMPLES),
-           RESULT_DIR+"/count.png"
-    message: "Done running mRNA pipeline"
-
-
-rule contig_count_table:
-       input: os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs.sam")
-       output: os.path.join(RESULT_DIR,"{sample}_contigs_cnt.txt")
-       message: "Create contig count table"
-       shell:
-         """
-             awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input} | sort | uniq -c > {output}
-         """
-
-rule tmap_contigs:
-     input: reads=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
-            db=SCRATCH_DIR+"/assembly100.fa.tmap.bwt"
-     output: SCRATCH_DIR+"/{sample}_tmap_contigs.sam"
-     message: "tmapping rest to contigs"
-     shell:
-        """
-        tmap mapall -r {input.reads} -f {SCRATCH_DIR}/assembly100.fa {TMAP_PARAMS} > {output}
-        """
-
-rule select_unmapped_contigs:
-   input: ASSEMB_DIR+"/contigs.fa"
-   output: SCRATCH_DIR+"/assembly100.fa"
-   message: "Selecting contigs from assembly"
-   shell:
-       """
-         awk 'BEGIN {{seq=""}} ($1 ~ /^>/) {{ if (seq  && (length(seq) > 99)) {{print name; print seq; seq="";  }} name=$0; next}} {{seq=seq $0}}' {input} > {output}
-       """
-
-rule assemble_unmapped:
-    input: SCRATCH_DIR+"/all_unmapped.fastq"
-    output: ASSEMB_DIR+"/contigs.fa"
-    message: "Assembling ummapped reads"
-    shell:
-       """
-         velveth {ASSEMB_DIR} {ASSEMB_HASH} -fastq {input}
-         velvetg {ASSEMB_DIR}
-       """
-
-rule combine_unmapped:
-   input: (SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq".format(sample=s) for s in SAMPLES)
-   output: SCRATCH_DIR+"/all_unmapped.fastq"
-   message: "combining all unmapped reads to single fastq file"
-   shell: " cat {input} > {output}"
-
-
-rule read_distribution_count:
-   input: raw=os.path.join(FQ_DIR,"{sample}.fastq"),
-          trimmed=SCRATCH_DIR+"/{sample}_trimmed.fastq",
-          nspike=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
-          ntransc=SCRATCH_DIR+"/{sample}_readsTagged.sam",
-          ngenome=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
-          ncontig=SCRATCH_DIR+"/{sample}_tmap_contigs_unmapped.fastq"
-   output: os.path.join(RESULT_DIR,"{sample}_readcnt.txt")
-   message: "Count number of reads in the sample"
-   shell:
-      """
-        rc_raw=$(($(cat     {input.raw}     | wc -l)/4))
-        rc_trimmed=$(($(cat {input.trimmed} | wc -l)/4))
-        rc_nspike=$(($(cat  {input.nspike}  | wc -l)/4))
-        rc_ntransc=$(grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual\|__not_aligned' {input.ntransc} | wc -l) 
-        rc_ngenome=$(($(cat {input.ngenome} | wc -l)/4))
-        echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome" > {output} 
-        echo -n "{wildcards.sample}\t"          >> {output}
-        echo -n "$rc_raw\t"                     >> {output}
-	echo -n "$((rc_raw-rc_trimmed))\t"      >> {output}
-        echo -n "$((rc_trimmed-rc_nspike))\t"   >> {output}
-        echo -n "$((rc_nspike-rc_ntransc))\t"   >> {output}
-        echo -n "$(($rc_ntransc-$rc_ngenome))\n">> {output}
-      """
-
-# We only align on genome since it is a procaryote. Use the tagged sam file, output of htseq, and grep reads with the appropreate tags. 
-# Then the AWK script should work as usual  
-rule genome_count_table:
-       input: os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
-       output: os.path.join(RESULT_DIR,"{sample}_genome_cnt.txt")
-       message: "Create genome count table" 
-       shell: 
-         """
-            cat {input} | grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual'|\
-            awk -v "b=100000" 'substr($1,1,1) == "@" {{ next; }} $2 == 0 {{ print $3 " - " b*int($4/b) }} $2 == 16 {{ print $3 " + " b*int($4/b)  }} ' | sort  -k1,2 -k3n | uniq -c > {output} 
-         """
-       
-
-rule transcript_count_table: 
-       input: os.path.join(SCRATCH_DIR+"/{sample}_tmap_genome.sam")
-       output: countTable=os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt"),
-	       samFile=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
-       message: "Create transcriptome count table" 
-       shell: 
-         """
-	     htseq-count -a 0 -t gene -i Name -o {output.samFile} {input} {GENOME_ANNOT} > {output.countTable}
-         """
-
-
-rule tmap_index: 
-     input: "{s}"
-     output:  "{s}.tmap.anno",
-              "{s}.tmap.bwt",
-              "{s}.tmap.pac",
-              "{s}.tmap.sa"
-     message: "Build an index for tmap"
-     shell: " tmap index -f {input} "
-
-
-rule tmap_genome: 
-     input: fq=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
-            db=GENOME_DB+".tmap.bwt"
-     output: SCRATCH_DIR+"/{sample}_tmap_genome.sam"
-     message: "tmapping rest to genome" 
-     shell:
-        """ 
-        tmap mapall -r {input.fq} -f {GENOME_DB} {TMAP_PARAMS} > {output}
-        """
-
-rule extract_unmapped: 
-    input: SCRATCH_DIR+"/{s}.sam" 
-    output: SCRATCH_DIR+"/{s}_unmapped.fastq"
-    message: "Extract unmapped reads from sam to fastq"
-    shell:
-        """
-        awk '$3=="*" {{printf("@%s\\n%s\\n+%s\\n%s\\n",$1,$10,$1,$11)}}' {input} > {output}
-        """
-
-# make spike count plots
-rule spike_count_plots:
-   input: totalcount=os.path.join(RESULT_DIR, "total_reads.csv"),
-          spikecount=os.path.join(RESULT_DIR,"CountTable_spike.txt")
-   output: countpng=os.path.join(RESULT_DIR,"count.png"),
-           normcountpng=os.path.join(RESULT_DIR,"norm_count.png")
-   run: R("""
-          library(faradr);
-          png(filename="{output.countpng}",width=1024,height=1024);
-          plot(PlotSpikeCounts("{input.spikecount}"));
-          dev.off();
-          png(filename="{output.normcountpng}",width=1024,height=1024);
-          plot(PlotNormalSpikeCounts("{input.spikecount}", "{input.totalcount}"));
-          dev.off();
-          """)
-
-# Count the number of reads in the input fastq files. The 
-# method assumes single sequence and quality lines.  
-# By checking if the first character of every 4th line is 
-# a @ the assumption is tested. 
-# The much slower count_fq_reads function in sRNA_tools.py can 
-# be used if the assumption does not hold. 
-
-rule total_reads_count:
-   input:  (FQ_DIR+"/{s}.fastq".format(s=sample) for sample in SAMPLES)
-   output: os.path.join(RESULT_DIR, "total_reads.csv")
-   message: "Count number of reads in the raw samples."
-   shell:
-     """
-        echo -n "" > {output}
-        for i in {FQ_DIR}/*.fastq ; do
-           SAMPLE=$(basename $i .fastq)
-           CNT=$(awk '(NR%4-1) {{next}} $1 ~ /^@/ {{sc++; next}} {{print "ERR"; exit -1}} END {{print sc}}' $i)
-           echo "$SAMPLE\t$CNT" >> {output}
-        done
-     """
-
-rule sam2bam:
-    input:  "{sample}.sam"
-    output: bam = "{sample}_sorted.bam",
-            bai = "{sample}_sorted.bam.bai",
-    message: "Converting {wildcards.sample} to sorted and indexed bam"
-    shell:
-      """
-        samtools view -bS {input} > {output.bam}
-        samtools sort {output.bam} {wildcards.sample}_sorted
-        samtools index {output.bam}
-      """
-
-rule spike_count:
-    input: ("{sd}/{sample}_spike_sorted.bam.bai".format(sample=s,sd=SCRATCH_DIR) for s in SAMPLES)
-    output: os.path.join(RESULT_DIR,"CountTable_spike.txt"),
-    message: "Counting spike reads"
-    shell: "python sRNA_tools.py count_spikes --basename _spike_sorted.bam --spike_type ERCC --bam-dir {SCRATCH_DIR} --count-dir {RESULT_DIR}"
-
-rule aln_spikes:
-    input: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
-    output: os.path.join(SCRATCH_DIR,"{sample}_spike.sam")
-    message: "Aligning reads to spike sequences."
-    shell: 
-        """
-        tmap mapall -r {input} -f {SPIKES_REF} {TMAP_PARAMS} > {output}
-        """
-
-rule trim_reads:
-    input: os.path.join(FQ_DIR,"{sample}.fastq")
-    output: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
-    message: "Trimming reads to 50 nt. And remove reads < 25nt"
-    shell: 
-       """
-	    awk 'BEGIN {{tlen=50; lmin=25}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
-       """ 
-
-
-rule create_dir:
-    output:  os.path.join("{s}",DIR_E)
-    message: "Create directory {wildcards.s}"
-    shell:   "mkdir -p {wildcards.s}; touch {output} "
 
