@@ -16,7 +16,7 @@ RESULT_DIR=${3:-.}
 
 MIRBASE_FTPDIR="ftp://mirbase.org/pub/mirbase/${VERSION}/"
 
-HAIRPINFA="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/Mirbase/Mirbase${VERSION}_hairpin.fa"
+HAIRPINFA="/mad/MAD-RBAB/05_Reference-db/external/Mirbase/Mirbase${VERSION}_hairpin.fa"
 
 #download hairpin sequence data if needed 
 if [ ! -f ${HAIRPINFA}  ] ; then 

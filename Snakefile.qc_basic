@@ -4,12 +4,10 @@ from snakemake.utils import R
 
 DESIGN_FILE = "seqdesign.txt"
 
-#PROJECT_DIR  = "../../"
-# Test value 
-PROJECT_DIR  = "basicQCtest2/"
+PROJECT_DIR  = "../../"
 RESULT_DIR   = PROJECT_DIR+"Results/basicQC/"
 FASTQ_STORE  = PROJECT_DIR+"Scratch/raw/"
-RUN_STORE    = "/zfs/datastore0/group_root/MAD-RBAB/04_MAD-RBAB-runs/data"
+RUN_STORE    = "/mad/MAD-RBAB/04_MAD-RBAB-runs/data"
 
 KNIT_BASE = "basicQC"
 RMD_FILE = KNIT_BASE + ".Rmd"

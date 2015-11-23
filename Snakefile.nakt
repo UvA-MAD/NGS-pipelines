@@ -7,13 +7,13 @@
 # --> try to write alignments to compressed bam directly
 #==========================================================================================
 
-EXPERIMENT_DIR= "/zfs/datastore0/group_root/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1"
+EXPERIMENT_DIR= "/mad/MAD-RBAB/02_Collaborators/MAD1114-NAKtuinbouw/MAD1114-P001-Greenforensics/MAD1114-P001-E003_2014_WP1_tomato_95samples_porij1"
 SCRATCH_DIR=EXPERIMENT_DIR+"/Scratch/mapgenome/"
 
 
 
 # location of the reference database
-db=/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/S_lycopersicum_chromosomes.2.50.fa
+db=/mad/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/S_lycopersicum_chromosomes.2.50.fa
 
 # tmap index -f $db
 

@@ -16,19 +16,19 @@ if not os.path.exists(GENOME_ANNOT):
    sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 
 # reference spikein sequences
-SEQDB="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/"
-SPIKES_REF = SEQDB+"external/ERCC/ERCC92.fa"
+SEQDB="/mad/MAD-RBAB/05_Reference-db"
+SPIKES_REF = os.path.join(SEQDB,"external/ERCC/ERCC92.fa")
 
 # directory with raw reads in fastq format
-FQ_DIR = EXPERIMENT_DIR+"/Scratch/raw/"
+FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
 SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
 
 # spike count table directory
-SCRATCH_DIR = EXPERIMENT_DIR+"/Scratch/mapped"
-RESULT_DIR = EXPERIMENT_DIR+"/Results/mapping"
+SCRATCH_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/mapped")
+RESULT_DIR = os.path.join(EXPERIMENT_DIR,"Results/mapping")
 DIR_E = ".dexist"
 
-ASSEMB_DIR = SCRATCH_DIR+"/UnmappAssemb21"
+ASSEMB_DIR = os.path.join(SCRATCH_DIR,"UnmappAssemb21")
 ASSEMB_HASH = 21
 
 TMAP_PARAMS = "-M 2 -O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3"
@@ -37,37 +37,37 @@ SEQ_COUNT_LOG="seq_count.txt"
 
 ########################################################################
 rule all:
-    input: RESULT_DIR+"/ReadCounts.txt",
-           RESULT_DIR+"/count.png",
-           RESULT_DIR+"/CountTable_transc.txt",
-           RESULT_DIR+"/CountTable_genome.txt",
-           RESULT_DIR+"/CountTable_contigs.txt",
-           RESULT_DIR+"/assembly100.fa"
+    input: os.path.join(RESULT_DIR,"ReadCounts.txt"),
+           os.path.join(RESULT_DIR,"count.png"),
+           os.path.join(RESULT_DIR,"CountTable_transc.txt"),
+           os.path.join(RESULT_DIR,"CountTable_genome.txt"),
+           os.path.join(RESULT_DIR,"CountTable_contigs.txt"),
+           os.path.join(RESULT_DIR,"assembly100.fa")
     message: "Done running mRNA pipeline"
 
 ########################################################################
 rule copy_to_result:
-    input:  SCRATCH_DIR+"/{s}"
-    output: RESULT_DIR+"/{s}"
+    input:  os.path.join(SCRATCH_DIR,"{s}")
+    output: os.path.join(RESULT_DIR,"{s}")
     shell: "cp {input} {output}"
 
 ########################################################################
 rule combine_readcount:
     input:  (SCRATCH_DIR+"/{sample}_readcnt.txt".format(sample=s) for s in SAMPLES)
-    output: RESULT_DIR+"/ReadCounts.txt"
+    output: os.path.join(RESULT_DIR,"ReadCounts.txt")
     message: "Combining counttables into single file"
     shell:
         """
-          echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome" > {output}
+          echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome\tcontigs\tunmapped" > {output}
           for i in {input} ; do tail -1 ${{i}}  >> {output} ; done
         """
 
 ########################################################################
 rule combine_mapping_counts:
        input:  (RESULT_DIR+"/{sample}_{mt}_cnt.txt".format(sample=s,mt="{mtype}") for s in SAMPLES)
-       output: RESULT_DIR+"/CountTable_{mtype}.txt"
+       output: os.path.join(RESULT_DIR,"CountTable_{mtype}.txt")
        params: samples=("{sample}".format(sample=s) for s in SAMPLES)
-       message: "Combining {wildcards.mtype} countables."
+       message: "Combining {wildcards.mtype} countables"
        run: R("""
            files=strsplit("{input}"," ")[[1]]
            samples=strsplit("{params.samples}"," ")[[1]]
@@ -96,9 +96,9 @@ rule contig_count_table:
 
 ########################################################################
 rule tmap_contigs:
-    input: reads=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
-           db=SCRATCH_DIR+"/assembly100.fa.tmap.bwt"
-    output: SCRATCH_DIR+"/{sample}_tmap_contigs.sam"
+    input: reads=os.path.join(SCRATCH_DIR,"/{sample}_tmap_genome_unmapped.fastq"),
+           db=os.path.join(SCRATCH_DIR,"/assembly100.fa.tmap.bwt")
+    output: os.path.join(SCRATCH_DIR,"/{sample}_tmap_contigs.sam")
     message: "tmapping rest to contigs"
     shell:
         """
@@ -107,8 +107,8 @@ rule tmap_contigs:
 
 ########################################################################
 rule select_unmapped_contigs:
-    input: ASSEMB_DIR+"/contigs.fa"
-    output: SCRATCH_DIR+"/assembly100.fa"
+    input: os.path.join(ASSEMB_DIR,"contigs.fa")
+    output: os.path.join(SCRATCH_DIR,"assembly100.fa")
     message: "Selecting contigs from assembly"
     shell:
         """
@@ -117,8 +117,8 @@ rule select_unmapped_contigs:
 
 ########################################################################
 rule assemble_unmapped:
-    input: SCRATCH_DIR+"/all_unmapped.fastq"
-    output: ASSEMB_DIR+"/contigs.fa"
+    input: os.path.join(SCRATCH_DIR,"all_unmapped.fastq")
+    output: os.path.join(ASSEMB_DIR,"contigs.fa")
     message: "Assembling ummapped reads"
     shell:
         """
@@ -129,18 +129,18 @@ rule assemble_unmapped:
 ########################################################################
 rule combine_unmapped:
     input: (SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq".format(sample=s) for s in SAMPLES)
-    output: SCRATCH_DIR+"/all_unmapped.fastq"
+    output: os.path.join(SCRATCH_DIR,"all_unmapped.fastq")
     message: "combining all unmapped reads to single fastq file"
     shell: "cat {input} > {output}"
 
 ########################################################################
 rule read_distribution_count:
     input: raw=os.path.join(FQ_DIR,"{sample}.fastq"),
-           trimmed=SCRATCH_DIR+"/{sample}_trimmed.fastq",
-           nspike=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
-           ntransc=SCRATCH_DIR+"/{sample}_readsTagged.sam",
-           ngenome=SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq",
-           ncontig=SCRATCH_DIR+"/{sample}_tmap_contigs_unmapped.fastq"
+           trimmed=os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq"),
+           nspike=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
+           ntransc=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam"),
+           ngenome=os.path.join(SCRATCH_DIR,"{sample}_tmap_genome_unmapped.fastq"),
+           ncontig=os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs_unmapped.fastq")
     output: os.path.join(SCRATCH_DIR,"{sample}_readcnt.txt")
     message: "Count number of reads per class for sample {wildcards.sample}."
     shell:
@@ -150,13 +150,16 @@ rule read_distribution_count:
           rc_nspike=$(($(cat  {input.nspike}  | wc -l)/4))
           rc_ntransc=$(grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual\|__not_aligned' {input.ntransc} | wc -l)
           rc_ngenome=$(($(cat {input.ngenome} | wc -l)/4))
-          echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome" > {output}
+          rc_ncontigs=$(($(cat {input.ncontig} | wc -l)/4))
+          echo "sample\ttotal\ttrimmed\tspike\ttranscriptome\tgenome\tcontigs\tunmapped" > {output}
           echo -n "{wildcards.sample}\t"               >> {output}
           echo -n "$rc_raw\t"                          >> {output}
           echo -n "$((rc_raw-rc_trimmed))\t"           >> {output}
           echo -n "$((rc_trimmed-rc_nspike))\t"        >> {output}
           echo -n "$((rc_nspike-rc_ntransc))\t"        >> {output}
-          echo    "$((rc_ntransc-rc_ngenome))"         >> {output}
+          echo -n "$((rc_ntransc-rc_ngenome))\t"       >> {output}
+          echo -n "$((rc_ngenome-rc_ncontigs))\t"      >> {output}
+          echo "$rc_ncontigs"                          >> {output}
         """
 
 ########################################################################
@@ -195,9 +198,9 @@ rule tmap_index:
 
 ########################################################################
 rule tmap_genome:
-    input: fq=SCRATCH_DIR+"/{sample}_spike_unmapped.fastq",
-           db=GENOME_DB+".tmap.bwt"
-    output: SCRATCH_DIR+"/{sample}_tmap_genome.sam"
+    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
+            db=os.path.join(GENOME_DB,".tmap.bwt")
+    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
     message: "tmapping rest to genome"
     shell:
         """
@@ -206,8 +209,8 @@ rule tmap_genome:
 
 ########################################################################
 rule extract_unmapped:
-    input: SCRATCH_DIR+"/{s}.sam"
-    output: SCRATCH_DIR+"/{s}_unmapped.fastq"
+    input:  os.path.join(SCRATCH_DIR,"{s}.sam")
+    output: os.path.join(SCRATCH_DIR,"{s}_unmapped.fastq")
     message: "Extract unmapped reads from sam to fastq"
     shell:
         """
