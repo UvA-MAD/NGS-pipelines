@@ -98,9 +98,9 @@ rule contig_count_table:
 
 ########################################################################
 rule tmap_contigs:
-    input: reads=os.path.join(SCRATCH_DIR,"/{sample}_tmap_genome_unmapped.fastq"),
-           db=os.path.join(SCRATCH_DIR,"/assembly100.fa.tmap.bwt")
-    output: os.path.join(SCRATCH_DIR,"/{sample}_tmap_contigs.sam")
+    input: reads=os.path.join(SCRATCH_DIR,"{sample}_tmap_genome_unmapped.fastq"),
+           db=SCRATCH_DIR+"/assembly100.fa.tmap.bwt"
+    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs.sam")
     message: "tmapping rest to contigs"
     shell:
         """
@@ -195,9 +195,9 @@ rule tmap_index:
     shell: "tmap index -f {input} "
 
 ########################################################################
-rule tmap_genome:
-    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
-            db=os.path.join(GENOME_DB,".tmap.bwt")
+rule euk_tmap_genome:
+    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_transc_unmapped.fastq"),
+            db=GENOME_DB+".tmap.bwt"
     output: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
     message: "tmapping rest to genome"
     shell:
@@ -207,7 +207,7 @@ rule tmap_genome:
 
 ########################################################################
 rule tmap_transcriptome:
-    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq",
+    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
             db=TRANSCRIPTOME_DB+".tmap.bwt"
     output: os.path.join(SCRATCH_DIR,"{sample}_tmap_transc.sam")
     message: "tmapping to transcriptome"
