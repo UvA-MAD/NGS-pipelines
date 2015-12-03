@@ -4,16 +4,16 @@ from snakemake.utils import R
 
 DESIGN_FILE = "seqdesign.txt"
 
-PROJECT_DIR  = "../../"
-RESULT_DIR   = PROJECT_DIR+"Results/basicQC/"
-FASTQ_STORE  = PROJECT_DIR+"Scratch/raw/"
+PROJECT_DIR  = "../.."
+RESULT_DIR   = os.path.join(PROJECT_DIR,"Results/basicQC")
+FASTQ_STORE  = os.path.join(PROJECT_DIR,"Scratch/raw")
 RUN_STORE    = "/mad/MAD-RBAB/04_MAD-RBAB-runs/data"
 
 KNIT_BASE = "basicQC"
 RMD_FILE = KNIT_BASE + ".Rmd"
-MD_FILE = RESULT_DIR+KNIT_BASE + ".md"
-HTML_FILE = RESULT_DIR+KNIT_BASE + ".html"
-KNIT_FIGDIR = RESULT_DIR+"figure/"
+MD_FILE = os.path.join(RESULT_DIR,KNIT_BASE + ".md")
+HTML_FILE = os.path.join(RESULT_DIR,KNIT_BASE + ".html")
+KNIT_FIGDIR = os.path.join(RESULT_DIR,"figure")
 DIR_E = ".dexist"
 
 
@@ -34,7 +34,7 @@ if not df['sampleid'].dtype == 'O':
  
 SAMPLES = [str(sample) for sample in list(set(df['sampleid']))]
 
-FASTQS = [ FASTQ_STORE + s + ".fastq" for s in SAMPLES]
+FASTQS = [ os.path.join(FASTQ_STORE, s + ".fastq") for s in SAMPLES]
 
 rule all:
     input: HTML_FILE

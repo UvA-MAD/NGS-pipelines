@@ -34,6 +34,7 @@ ASSEMB_HASH = 21
 TMAP_PARAMS = "-M 2 -O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3"
 
 SEQ_COUNT_LOG="seq_count.txt"
+READ_TRIM_LEN=50
 
 ########################################################################
 rule all:
@@ -44,12 +45,6 @@ rule all:
            os.path.join(RESULT_DIR,"CountTable_contigs.txt"),
            os.path.join(RESULT_DIR,"assembly100.fa")
     message: "Done running mRNA pipeline"
-
-########################################################################
-rule copy_to_result:
-    input:  os.path.join(SCRATCH_DIR,"{s}")
-    output: os.path.join(RESULT_DIR,"{s}")
-    shell: "cp {input} {output}"
 
 ########################################################################
 rule combine_readcount:
@@ -289,11 +284,17 @@ rule aln_spikes:
 rule trim_reads:
     input: os.path.join(FQ_DIR,"{sample}.fastq")
     output: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
-    message: "Trimming reads to 50 nt. And remove reads < 25nt"
+    message: "Trimming reads to {READ_TRIM_LEN} nt. And remove reads < 25nt"
     shell:
        """
-         awk 'BEGIN {{tlen=50; lmin=25}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
+         awk 'BEGIN {{tlen={READ_TRIM_LEN}; lmin=25}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
        """
+
+########################################################################
+rule copy_to_result:
+    input:  os.path.join(SCRATCH_DIR,"{s}")
+    output: os.path.join(RESULT_DIR,"{s}")
+    shell: "cp {input} {output}"
 
 ########################################################################
 rule create_dir:

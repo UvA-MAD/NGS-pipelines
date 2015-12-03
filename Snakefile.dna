@@ -1,0 +1,119 @@
+# Snakefile for genome mapping 
+# 2015-03-03
+# based on script by Oskar Bruning
+# Title: Mapping merged BAM file with TMAP
+# Reads are mapped using tmap-4.2.18
+# bam files are filtered first on read length of 50 nt
+# --> try to write alignments to compressed bam directly
+#==========================================================================================
+
+EXPERIMENT_DIR= "../.."
+SCRATCH_DIR=os.path.join(EXPERIMENT_DIR,"Scratch/mapgenome")
+RESULT_DIR=os.path.join(EXPERIMENT_DIR,"Result/mapgenome")
+
+
+
+# location of the reference database
+
+# tmap index -f $db
+
+# fixate working folder
+#base_dir=EXPERIMENT_DIR+"Scratch"
+
+# create output folders
+# mkdir $base_dir/bam_filtering
+# mkdir $base_dir/mapping_results
+# mkdir $base_dir/mapping_sorting
+
+GENOME_DB="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/dre/DNA/genome/Danio_rerio.Zv9.75.dna.toplevel.fa"
+
+
+FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
+SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+
+
+
+rule all: 
+     input:  os.path.join(RESULT_DIR,"Stats.txt"),
+             (SCRATCH_DIR+"/{sample}_unmapped.fastq".format(sample=s) for s in SAMPLES)
+     message: "Genome mapping pipeline done" 
+
+
+########################################################################
+rule tmap_index:
+    input: "{s}"
+    output:  "{s}.tmap.anno",
+             "{s}.tmap.bwt",
+             "{s}.tmap.pac",
+             "{s}.tmap.sa"
+    message: "Build an index for tmap"
+    shell: "tmap index -f {input} "
+
+
+########################################################################
+rule filter_len: 
+    input: os.path.join(FQ_DIR,"{s}.fastq")
+    output: os.path.join(SCRATCH_DIR,"{s}_Filtered.fastq")
+    message: "Removing short reads" 
+    shell: 
+       """
+         awk 'BEGIN {{lmin=50}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],av[2],av[3],$0); }} ln=0; }}'  {input} > {output}
+       """
+
+
+
+TMAP_PARAMS = "-g 3 -a 1 -n 28 -v stage1 map1 map2 map3"
+########################################################################
+rule maptogenome:
+    input: fq=os.path.join(SCRATCH_DIR,"{sample}_Filtered.fastq"),
+           db=GENOME_DB+".tmap.bwt"
+    output: os.path.join(SCRATCH_DIR,"{sample}_mapped.sam")
+    message: "mapping {wildcards.sample} to genome"
+    shell:
+      """ 
+        tmap mapall -f ${GENOME_DB} -r {input.fq} -s {output} {TMAP_PARAMS}
+      """
+
+########################################################################
+rule sam2sortedbam:
+    input:  "{sample}.sam"
+    output: bam = "{sample}_sorted.bam",
+            bai = "{sample}_sorted.bam.bai"
+    message: "Converting {wildcards.sample} to sorted and indexed bam"
+    shell:
+      """
+	samtools view -bS {input} > {output.bam}
+        samtools sort -@ 20 - m 20 G {output.bam} {wildcards.sample}_sorted
+        samtools index {output.bam}
+      """
+
+
+########################################################################
+rule extract_unmapped:
+    input:  os.path.join(SCRATCH_DIR,"{s}_mapped.sam")
+    output: os.path.join(SCRATCH_DIR,"{s}_unmapped.fastq")
+    message: "Extract unmapped reads from sam to fastq"
+    shell:
+        """
+          awk '$3=="*" {{printf("@%s\\n%s\\n+%s\\n%s\\n",$1,$10,$1,$11)}}' {input} > {output}
+        """
+
+
+########################################################################
+rule gensamplestats:
+    input: "{sample}_mapped_sorted.bam"
+    output: "{sample}_Stats.txt"
+    message: "Generate stats for {wildcards.sample}"
+    shell: 
+     """
+       samtools idxstats {input} > {output}
+       samtools flagstat {input} >> {output}
+     """
+
+########################################################################
+rule genallstats:
+     input: (SCRATCH_DIR+"/{sample}_Stats.txt".format(sample=s) for s in SAMPLES)
+     output: os.path.join(RESULT_DIR,"Stats.txt")
+     message: "compiling stats"
+     shell: "cat {input} > {output}"
+
