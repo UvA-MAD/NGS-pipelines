@@ -38,26 +38,18 @@ if not os.path.exists(param.GENOME_ANNOT) and DOMAIN == "prokaryote":
 GENOME_ANNOT=param.GENOME_ANNOT
 
 SAMPLES=param.SAMPLES 
-SCRATCH_DIR= param.SCRATCH_DIR
 RESULT_DIR= param.RESULT_DIR
-
 
 
 ########################################################################
 rule all:
-    input: os.path.join(RESULT_DIR,"ReadCounts.txt"),
+    input: os.path.join(RESULT_DIR,"CountTable_transc.txt"),
            os.path.join(RESULT_DIR,"count.png"),
-           os.path.join(RESULT_DIR,"CountTable_transc.txt"),
+           os.path.join(RESULT_DIR,"ReadCounts.txt"),
            os.path.join(RESULT_DIR,"CountTable_genome.txt"),
            os.path.join(RESULT_DIR,"CountTable_contigs.txt"),
            os.path.join(RESULT_DIR,"assembly100.fa")
     message: "Done running mRNA pipeline"
-
-########################################################################
-rule copy_to_result:
-    input:  os.path.join(SCRATCH_DIR,"{s}")
-    output: os.path.join(RESULT_DIR,"{s}")
-    shell: "cp {input} {output}"
 
 ########################################################################
 rule combine_readcount:
@@ -92,9 +84,10 @@ rule combine_mapping_counts:
            write.table(res,"{output}",sep="\\t",quote=F,row.names=F)
            """)
 
+
 ########################################################################
 rule contig_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs.sam")
+    input: os.path.join(SCRATCH_DIR,"{sample}_contigs.sam")
     output: os.path.join(RESULT_DIR,"{sample}_contigs_cnt.txt")
     message: "Create contig count table"
     shell:
@@ -103,15 +96,30 @@ rule contig_count_table:
          """
 
 ########################################################################
-rule tmap_contigs:
-    input: reads=os.path.join(SCRATCH_DIR,"{sample}_tmap_genome_unmapped.fastq"),
+rule spike_count_table:
+    input: os.path.join(SCRATCH_DIR,"{sample}_spike.sam")
+    output: os.path.join(RESULT_DIR,"{sample}_spike_cnt.txt")
+    message: "Create contig count table"
+    shell:
+         """
+             awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input} | sort | uniq -c > {output}
+         """
+
+########################################################################
+rule map_contigs:
+    input: reads=os.path.join(SCRATCH_DIR,"{sample}_genome_unmapped.fastq"),
            db=os.path.join(SCRATCH_DIR,"assembly100.fa.tmap.bwt")
-    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs.sam")
-    message: "tmapping rest to contigs"
+    output: os.path.join(SCRATCH_DIR,"{sample}_contigs.sam")
+    message: "mapping rest to contigs"
     shell:
         """
           tmap mapall -r {input.reads} -f {SCRATCH_DIR}/assembly100.fa {TMAP_PARAMS} > {output}
         """
+
+rule copy_assembly:
+    input: os.path.join(SCRATCH_DIR,"assembly100.fa")
+    output: os.path.join(RESULT_DIR,"assembly100.fa")
+    shell: "cp {input} {output}"
 
 ########################################################################
 rule select_unmapped_contigs:
@@ -136,7 +144,7 @@ rule assemble_unmapped:
 
 ########################################################################
 rule combine_unmapped:
-    input: (SCRATCH_DIR+"/{sample}_tmap_genome_unmapped.fastq".format(sample=s) for s in SAMPLES)
+    input: (SCRATCH_DIR+"/{sample}_genome_unmapped.fastq".format(sample=s) for s in SAMPLES)
     output: os.path.join(SCRATCH_DIR,"all_unmapped.fastq")
     message: "combining all unmapped reads to single fastq file"
     shell: "cat {input} > {output}"
@@ -145,7 +153,7 @@ rule combine_unmapped:
 ########################################################################
 rule pro_get_transcript_count:
      input: os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
-     output: os.path.join(SCRATCH_DIR,"{sample}_transc_cnt.txt")
+     output: os.path.join(SCRATCH_DIR,"{sample}_prokaryote_transc_cnt.txt")  
      message: "transcript mapping count" 
      shell: 
          """
@@ -154,8 +162,8 @@ rule pro_get_transcript_count:
          """
 ########################################################################
 rule euk_get_transcript_count:
-     input: os.path.join(SCRATCH_DIR,"{sample}_tmap_transc_unmapped.fastq")
-     output: os.path.join(SCRATCH_DIR,"{sample}_transc_cnt.txt")
+     input: os.path.join(SCRATCH_DIR,"{sample}_transc_unmapped.fastq")
+     output: os.path.join(SCRATCH_DIR,"{sample}_eukaryote_transc_cnt.txt")
      message: "transcript mapping count" 
      shell:
          """
@@ -168,9 +176,9 @@ rule read_distribution_count:
     input: raw=os.path.join(FQ_DIR,"{sample}.fastq"),
            trimmed=os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq"),
            nspike=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
-           ntransc=os.path.join(SCRATCH_DIR,"{sample}_tmap_transc_cnt.txt"),
-           ngenome=os.path.join(SCRATCH_DIR,"{sample}_tmap_genome_unmapped.fastq"),
-           ncontig=os.path.join(SCRATCH_DIR,"{sample}_tmap_contigs_unmapped.fastq")
+           ntransc=os.path.join(SCRATCH_DIR,"{sample}_"+DOMAIN+"_transc_cnt.txt"),
+           ngenome=os.path.join(SCRATCH_DIR,"{sample}_genome_unmapped.fastq"),
+           ncontig=os.path.join(SCRATCH_DIR,"{sample}_contigs_unmapped.fastq")
     output: os.path.join(SCRATCH_DIR,"{sample}_readcnt.txt")
     message: "Count number of reads per class for sample {wildcards.sample}."
     shell:
@@ -192,53 +200,36 @@ rule read_distribution_count:
           echo    "$rc_ncontigs"                   >> {output}
         """
 
-########################################################################
-rule euk_genome_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
-    output: os.path.join(RESULT_DIR,"{sample}_euk_genome_cnt.txt")
-    message: "Create count table"
-    shell:
-        """
-          awk -v "b=100000" 'substr($1,1,1) == "@" {{ next; }} $2 == 0 {{ print $3 " - " b*int($4/b) }} $2 == 16 {{ print $3 " + " b*int($4/b)  }} ' {input} | sort  -k1,2 -k3n | uniq -c > {output}
-        """
-
-########################################################################
-# We only align on genome since it is a procaryote. Use the tagged sam 
-# file, output of htseq, and grep reads with the appropreate tags.
-# Then the AWK script should work as usual
-rule pro_genome_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
+rule genome_count_table:
+    input: os.path.join(SCRATCH_DIR,"{sample}_genome.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
     output: os.path.join(RESULT_DIR,"{sample}_genome_cnt.txt")
     message: "Create count table"
     shell:
         """
-          cat {input} | grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual'|\
-          awk -v "b=100000" 'substr($1,1,1) == "@" {{next;}} $2 == 0 {{print $3 " - " b*int($4/b)}} $2 == 16 {{ print $3 " + " b*int($4/b)  }} ' | sort  -k1,2 -k3n | uniq -c > {output}
+          tmpfile=$(mktemp /tmp/mrnapipe.XXXXXX)
+	  if [ "{DOMAIN}"  = "prokaryote" ] ; then 
+              cat {input} | grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual' > $tmpfile
+          fi
+          cat {input} > $tmpfile
+          awk -v "b=100000" 'substr($1,1,1) == "@" {{ next; }} $2 == 0 {{ print $3 " - " b*int($4/b) }} $2 == 16 {{ print $3 " + " b*int($4/b)  }} ' $tmpfile | sort  -k1,2 -k3n | uniq -c > {output}
+	  rm $tmpfile
         """
+ 
 
-########################################################################
-rule euk_transcript_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_tmap_transc.sam")
-    output: os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt")
+rule transcript_count_table:
+    input: os.path.join(SCRATCH_DIR,"{sample}_transc.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_genome.sam")
+    output: countTable=os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt"),
+            samFile=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
     message: "Create count table"
     shell:
         """
-          awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input} | sort | uniq -c > {output}
+	  if [ "{DOMAIN}"  = "prokaryote" ] ; then 
+             htseq-count -a 0 -t gene -i Name -o {output.samFile} {input} {GENOME_ANNOT} | awk '{{print $2 "\\t" $1 }}' > {output.countTable}
+	  else
+             awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input} | sort | uniq -c > {output.countTable}
+             touch {output.samFile}
+	  fi 
         """
-
-
-########################################################################
-rule pro_transcript_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
-    output: countTable=os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt"),
-            samFile=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
-    message: "Create transcriptome count table"
-    shell:
-         """
-           htseq-count -a 0 -t gene -i Name -o {output.samFile} {input} {GENOME_ANNOT} \
-           | awk '{{print $2 "\\t" $1 }}' > {output.countTable}
-         """
-
 
 ########################################################################
 rule tmap_index:
@@ -250,37 +241,31 @@ rule tmap_index:
     message: "Build an index for tmap"
     shell: "tmap index -f {input} "
 
+
+if DOMAIN=="prokaryote":
+    GENOME_MAP_INPUT = "spike"
+else:
+    GENOME_MAP_INPUT = "transc"
+
 ########################################################################
-rule pro_tmap_genome:
-    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
+rule map_genome:
+    input:  fq=os.path.join(SCRATCH_DIR,"{sample}"+("_{input}_unmapped.fastq").format(input=GENOME_MAP_INPUT)),
             db=GENOME_DB+".tmap.bwt"
-    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
-    message: "tmapping rest to genome"
+    output: os.path.join(SCRATCH_DIR,"{sample}_genome.sam")
+    message: "mapping rest to genome"
     shell:
         """
           tmap mapall -r {input.fq} -f {GENOME_DB} {TMAP_PARAMS} > {output}
         """
 
 
-########################################################################
-rule euk_tmap_genome:
-    input:  fq=os.path.join(SCRATCH_DIR,"{sample}_transc_unmapped.fastq"),
-            db=GENOME_DB+".tmap.bwt"
-    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_genome.sam")
-    message: "tmapping rest to genome"
-    shell:
-        """
-          tmap mapall -r {input.fq} -f {GENOME_DB} {TMAP_PARAMS} > {output}
-        """
-
-
 
 ########################################################################
-rule tmap_transcriptome:
+rule map_transcriptome:
     input:  fq=os.path.join(SCRATCH_DIR,"{sample}_spike_unmapped.fastq"),
             db=TRANSCRIPTOME_DB+".tmap.bwt"
-    output: os.path.join(SCRATCH_DIR,"{sample}_tmap_transc.sam")
-    message: "tmapping to transcriptome"
+    output: os.path.join(SCRATCH_DIR,"{sample}_transc.sam")
+    message: "mapping to transcriptome"
     shell:  "tmap mapall -r {input.fq} -f {TRANSCRIPTOME_DB} {TMAP_PARAMS} > {output}"
 
 ########################################################################
@@ -345,13 +330,6 @@ rule sam2bam:
         """
 
 ########################################################################
-rule spike_count:
-    input: ("{sd}/{sample}_spike_sorted.bam.bai".format(sample=s,sd=SCRATCH_DIR) for s in SAMPLES)
-    output: os.path.join(RESULT_DIR,"CountTable_spike.txt"),
-    message: "Counting spike reads"
-    shell: "python sRNA_tools.py count_spikes --basename _spike_sorted.bam --spike_type ERCC --bam-dir {SCRATCH_DIR} --count-dir {RESULT_DIR}"
-
-########################################################################
 rule aln_spikes:
     input: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
     output: os.path.join(SCRATCH_DIR,"{sample}_spike.sam")
@@ -376,3 +354,11 @@ rule create_dir:
     output:  os.path.join("{s}",DIR_E)
     message: "Create directory {wildcards.s}"
     shell:   "mkdir -p {wildcards.s}; touch {output} "
+
+########################################################################
+# This rule deletes the map to which SCRATCH_DIR points. 
+# Double check if SCRATCH_DIR points to a location you realy want to delete 
+
+rule i_am_sure_clean_scratch:
+    message: "Removing scratch files for the mrna pipeline" 
+    shell: "rm -rf {SCRATCH_DIR}" 
