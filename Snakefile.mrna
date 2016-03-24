@@ -309,7 +309,7 @@ rule total_reads_count:
     shell:
         """
           echo -n "" > {output}
-          for i in {FQ_DIR}/*.fastq ; do
+          for i in {input} ; do
              SAMPLE=$(basename $i .fastq)
              CNT=$(awk '(NR%4-1) {{next}} $1 ~ /^@/ {{sc++; next}} {{print "ERR"; exit -1}} END {{print sc}}' $i)
              echo "$SAMPLE\t$CNT" >> {output}
