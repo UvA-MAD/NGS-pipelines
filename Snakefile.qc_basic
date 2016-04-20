@@ -36,9 +36,24 @@ SAMPLES = [str(sample) for sample in list(set(df['sampleid']))]
 
 FASTQS = [ os.path.join(FASTQ_STORE, s + ".fastq") for s in SAMPLES]
 
+
+FASTQC_OUTDIR = os.path.join(RESULT_DIR,"/fastqc") 
+
+FASTQC_OUT= [os.path.join(FASTQC_OUTDIR,s+"_fastqc","fastqc_report.html") for s in SAMPLES]
+
+# 
+#  Remove the # in the input line to generate FastQC reports for all samples 
+
 rule all:
-    input: HTML_FILE
+    input: HTML_FILE  #, FASTQC_OUT
     message: "basic QC done!"
+
+rule fast_qc:
+       input: fq=FASTQS,
+              outdir=FASTQC_OUTDIR+DIR_E
+       output: FASTQC_OUT
+       message: "generating fastqc files"
+       shell: "fastqc  -o {FASTQC_OUTDIR} {input.fq}"
 
 rule bootstrap:
     input: MD_FILE
