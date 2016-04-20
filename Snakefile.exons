@@ -2,21 +2,29 @@
 import os
 from snakemake.utils import R
 
-EXPERIMENT_DIR = "../../"
+EXPERIMENT_DIR = "../.."
 
 # species for which pipeline is run
-SPECIES = "sly"
+SPECIES = "mmu"
+
+SCRATCH_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/exonmapping")
+
+DB_DIR=os.path.join(SCRATCH_DIR,"annotations")
 
 # in an ideal world the database is found by species alone 
+GENOME=os.path.join(DB_DIR,"Mus_musculus.GRCm38.dna.primary_assembly.fa")
+GENOME_URL="ftp://ftp.ensembl.org/pub/release-84/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz"
 
-ANNOTATION_DIR="/mad/software/src/Ion_RNASeq/annotations/sl/"
+ION_RRNA_SEQS="/zfs/datastore0/software/src/Ion_RNASeq/annotations/mm10/xrRNA.fasta"
 
-GENOME="/mad/MAD-RBAB/05_Reference-db/external/sly/DNA/genome/Solanum_lycopersicum.GCA_000188115.2.29.dna.genome.fa"
-RRNA=ANNOTATION_DIR+"xrRNA.fasta"
-GENOME_GTF=ANNOTATION_DIR+"gene.gtf"
-REF_FLAT=ANNOTATION_DIR+"refFlat"
-RNA_INT=ANNOTATION_DIR+"rRNA.interval"
-RRNA_MASK=ANNOTATION_DIR+"rRNA_mask.gtf"
+RRNA_SEQS=os.path.join(DB_DIR,"addRNA.fasta")
+GENOME_GTF=os.path.join(DB_DIR,"gene.gtf")
+GENOME_GTF_URL="ftp://ftp.ensembl.org/pub/release-84/gtf/mus_musculus/Mus_musculus.GRCm38.84.gtf.gz"
+
+ENS_DATA_SET="mmusculus_gene_ensembl"
+REF_FLAT=os.path.join(DB_DIR,"refFlat")
+RRNA_INT=os.path.join(DB_DIR,"rRNA.interval")
+RRNA_MASK=os.path.join(DB_DIR,"rRNA_mask.gtf")
 
 
 # reference spikein sequences
@@ -24,15 +32,21 @@ SEQDB="/mad/MAD-RBAB/05_Reference-db"
 SPIKES_REF = os.path.join(SEQDB,"external/ERCC/ERCC92.fa")
 
 # spike count table directory
-SCRATCH_DIR = "/scratch/PPtest1"
-RESULT_DIR = "./PPtestResults"
+RESULT_DIR = os.path.join(EXPERIMENT_DIR,"Results/exonmapping")
+
 DIR_E = ".dexist"
 
 STAR_BIN = "/mad/bin/STAR"
 
 # directory with raw reads in fastq format
-FQ_DIR = SCRATCH_DIR+"/raw"
-SAMPLES =  ["S20","S22"]
+FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
+SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+
+#File with experimental design. The design file used for basic QC can be reused
+EXP_DESIGN="seqdesign.txt"
+
+#The column name in the experimental design to use for Deseq2 differental expression analysis
+CONTRAST_COLUMN_NAME="Group"
 
 ASSEMB_DIR = os.path.join(SCRATCH_DIR,"UnmappAssemb21")
 ASSEMB_HASH = 21
@@ -44,44 +58,122 @@ BOWTIE_PARAMS="--local --very-sensitive-local -p 8 -q --mm"
 PICARD_DIR="/mad/software/src/picard-tools"
 
 rule all:
-     input:  (SCRATCH_DIR+"/{sample}_STAR_bowtie.bam".format(sample=s) for s in SAMPLES),
-             (SCRATCH_DIR+"/{sample}_bowtie_aln_xrna.bam".format(sample=s) for s in SAMPLES),
-             (SCRATCH_DIR+"/{sample}_STAR_bowtie_alignmentSummary.txt".format(sample=s) for s in SAMPLES),
-             (SCRATCH_DIR+"/{sample}_STAR_bowtie_RNAmetrics.txt".format(sample=s) for s in SAMPLES),
-             (SCRATCH_DIR+"/{sample}_STAR_bowtie_exon_count.txt".format(sample=s) for s in SAMPLES),
-             (SCRATCH_DIR+"/{sample}_STAR_bowtie_cufflinks/transcripts.gtf".format(sample=s) for s in SAMPLES)
+     input: (RESULT_DIR+"/{sample}_STAR_bowtie_RNAmetrics.txt".format(sample=s) for s in SAMPLES),
+            (RESULT_DIR+"/{sample}_STAR_bowtie_alignmentSummary.txt".format(sample=s) for s in SAMPLES),
+            (RESULT_DIR+"/{sample}_STAR_bowtie_exon_count.txt".format(sample=s) for s in SAMPLES),
+            (RESULT_DIR+"/{sample}_STAR_bowtie_gen_count.txt".format(sample=s) for s in SAMPLES),
+            (RESULT_DIR+"/{sample}_cufflinks/transcripts.gtf".format(sample=s) for s in SAMPLES),
+            RESULT_DIR+"/GenCountTable.txt",
+            RESULT_DIR+"/DESeq2_gene_result.txt"
+#             (SCRATCH_DIR+"/{sample}_STAR_bowtie.bam".format(sample=s) for s in SAMPLES),
+#             (SCRATCH_DIR+"/{sample}_bowtie_aln_xrna.bam".format(sample=s) for s in SAMPLES),
+#             (RESULT_DIR+"/{sample}_STAR_bowtie_cufflinks/transcripts.gtf".format(sample=s) for s in SAMPLES)
      message: "all"
           
 
+
+rule deseq_analysis:
+  input: countfile=os.path.join(RESULT_DIR,"GenCountTable.txt"),
+         designfile=EXP_DESIGN
+  output: os.path.join(RESULT_DIR,"DESeq2_gene_result.txt")
+  params: contrast_column=CONTRAST_COLUMN_NAME
+  message: "using DESeq2 to find differntally experessed genes"
+  run: R("""
+    require(DESeq2)
+    gencounts <- read.table("{input.countfile}",sep="\\t",stringsAsFactors=T,header=T,quote="")
+    rownames(gencounts) <-  gencounts$EnsembleID
+
+    design <- unique(read.table("seqdesign.txt",header=T)[,c("SampleID","{params.contrast_column}")])
+
+    rawcounts <- gencounts[1:(nrow(gencounts)-5),c(3:ncol(gencounts))]
+    rownames(rawcounts) <- gencounts[1:(nrow(gencounts)-5),1]
+
+    dds <- DESeqDataSetFromMatrix(countData=rawcounts,colData=design,design = ~ {params.contrast_column})
+    dds <- DESeq(dds)
+    res <- results(dds)
+    dff <- as.data.frame(res[order(res$padj),])
+    dff$description <- gencounts[rownames(dff),"description"]
+    write.table(dff,file="{output}",row.names=T,col.names=T,sep="\\t",quote=F);
+         """)
+
+rule combined_gen_count_table:
+  input:  (RESULT_DIR+"/{sample}_STAR_bowtie_gen_count.txt".format(sample=s) for s in SAMPLES)
+  output: os.path.join(RESULT_DIR,"GenCountTable.txt")
+  params: samples=("{sample}".format(sample=s) for s in SAMPLES)
+  message: "combining per sample count tables"
+  run: R("""
+      library(biomaRt)
+      ensemblmart = useEnsembl(biomart="ensembl",dataset="{ENS_DATA_SET}")
+      ann <-  getBM(attributes=c('ensembl_gene_id','description','chromosome_name'), mart = ensemblmart)
+      rownames(ann) <- ann$ensembl_gene_id
+      files=strsplit("{input}"," ")[[1]]
+      samples=strsplit("{params.samples}"," ")[[1]]
+      genids = read.table(files[1],sep="\\t",stringsAsFactors=F)[,1]
+      res <- data.frame(EnsembleID=genids,description=ann[genids,"description"],stringsAsFactors=F)
+      for (i in 1:length(samples)) {{
+          res[,samples[i]] = read.table(files[i],sep="\\t")[,2]
+      }}
+      write.table(res,"{output}",sep="\\t",quote=F,row.names=F)
+         """)
+
+rule gen_count_tables:
+  input: os.path.join(SCRATCH_DIR,"{s}.bam")
+  output: os.path.join(RESULT_DIR,"{s}_gen_count.txt")
+  message: "creating count table for {wildcards.s}" 
+  shell: " samtools view -F4 {input} | htseq-count -q - {GENOME_GTF}  > {output} " 
+
 rule cufflinks:
-   input: "{dir}/{s}.bam"
-   output: "{dir}/{s}_cufflinks/transcripts.gtf",
-           "{dir}/{s}_cufflinks/genes.fpkm_tracking",
-           "{dir}/{s}_cufflinks/isoforms.fpkm_tracking"
+   input: bam=os.path.join(SCRATCH_DIR,"{s}_STAR_bowtie.bam"),
+          mask=RRNA_MASK,
+          annot=GENOME_GTF
+   output: os.path.join(RESULT_DIR,"{s}_cufflinks/transcripts.gtf"),
+           os.path.join(RESULT_DIR,"{s}_cufflinks/genes.fpkm_tracking"),
+           os.path.join(RESULT_DIR,"{s}_cufflinks/isoforms.fpkm_tracking")
    message: "Cufflinks transcript assembly and quantification"
    shell: 
      """
-       cufflinks -q -p 12 -m 100 -s 60 -G {GENOME_GTF} -M {RRNA_MASK} \
-         --library-type fr-secondstrand --max-bundle-length 3500000 -o {wildcards.dir}/{wildcards.s}_cufflinks --no-update-check  {input}
+       cufflinks -q -p 12 -m 100 -s 60 -G {input.annot} -M {input.mask} \
+         --library-type fr-secondstrand --max-bundle-length 3500000 -o {RESULT_DIR}/{wildcards.s}_cufflinks --no-update-check  {input.bam}
      """
 
 
 rule count_table: 
-  input: "{dir}/{s}.bam"
-  output: "{dir}/{s}_exon_count.txt"
+  input: bam=os.path.join(SCRATCH_DIR,"{s}.bam"),
+         annot=GENOME_GTF
+  output: os.path.join(RESULT_DIR,"{s}_exon_count.txt")
   message: "creating count table for {wildcards.s}" 
-  shell: " samtools view -F4 {input} | htseq-count -q - {GENOME_GTF}  > {output} " 
+  shell: " samtools view -F4 {input.bam} | htseq-count -q - {input.annot}  > {output} " 
+
+
+rule create_rna_interval: 
+     input: bam=os.path.join(SCRATCH_DIR,"S01_aligned_STAR.bam"),
+            gtf=GENOME_GTF
+     output: RRNA_INT
+     shell:
+        """
+          samtools view -H {input.bam} | grep -v "^@PG" | grep -v "^@CO" >  {output}
+          grep 'gene_biotype "rRNA"' {input.gtf} |perl -ne '($name)=/gene_name "(.+?)"/;split/\t/; print "$_[0]\t$_[3]\t$_[4]\t$_[6]\t$name\n"'|uniq  >> {output} 
+        """
 
 rule rna_metrics: 
-     input: bam="{location}/{sample}_{alignment}.bam",
-            refflat=os.path.join(SCRATCH_DIR,"refFlat")
-     output: "{location}/{sample}_{alignment}_RNAmetrics.txt"
+     input: bam=os.path.join(SCRATCH_DIR,"{sample}_{alignment}.bam"),
+            refflat=os.path.join(SCRATCH_DIR,"refFlat"),
+            interval=RRNA_INT
+     output: os.path.join(RESULT_DIR,"{sample}_{alignment}_RNAmetrics.txt")
      message: "calculating rna metrics for {wildcards.sample}" 
      shell: 
         """ 
          java -jar {PICARD_DIR}/CollectRnaSeqMetrics.jar REF_FLAT={input.refflat} \
-           RIBOSOMAL_INTERVALS={RNA_INT} STRAND=FIRST_READ_TRANSCRIPTION_STRAND \
+           RIBOSOMAL_INTERVALS={input.interval} STRAND=FIRST_READ_TRANSCRIPTION_STRAND \
            MINIMUM_LENGTH=100 LEVEL=ALL_READS I={input.bam} O={output} R={GENOME} 
+        """
+
+rule gen_rna_mask:
+      input: GENOME_GTF 
+      output: RRNA_MASK
+      shell: 
+         """
+           grep 'gene_biotype "rRNA"' {input} > {output}
         """
 
 rule gen_refflat:
@@ -97,8 +189,8 @@ rule gen_refflat:
         """ 
 
 rule alignment_summary: 
-     input: "{location}/{sample}_{alignment}.bam"
-     output: "{location}/{sample}_{alignment}_alignmentSummary.txt"
+     input: os.path.join(SCRATCH_DIR,"{sample}_{alignment}.bam")
+     output: os.path.join(RESULT_DIR,"{sample}_{alignment}_alignmentSummary.txt")
      message: "calculating alignment metrics for {wildcards.sample}" 
      shell: 
         """ 
@@ -106,9 +198,9 @@ rule alignment_summary:
         """
 
 rule merge_STAR_and_bowtie:
-     input: star="{s}_aligned_STAR.bam",
-            bowtie="{s}_bowtie_aln_genome.bam"
-     output: "{s}_STAR_bowtie.bam"
+     input: star=os.path.join(SCRATCH_DIR,"{s}_aligned_STAR.bam"),
+            bowtie=os.path.join(SCRATCH_DIR,"{s}_bowtie_aln_genome.bam")
+     output: os.path.join(SCRATCH_DIR,"{s}_STAR_bowtie.bam")
      message: "Merging bam files {input.star} and {input.bowtie}"
      shell: 
        """ 
@@ -140,7 +232,7 @@ rule aln_to_genome_with_bowtie:
 
 ########################################################################
 rule create_bowtie_index_for_xrna:
-    input:   RRNA
+    input:   ION_RRNA_SEQS
     output:  os.path.join(SCRATCH_DIR,"xrna.1.bt2"),
              os.path.join(SCRATCH_DIR,"xrna.2.bt2"),
              os.path.join(SCRATCH_DIR,"xrna.3.bt2"),
@@ -165,19 +257,19 @@ rule create_bowtie_index_for_genome:
 
 ########################################################################
 rule align_with_star:
-    input: fq=os.path.join(SCRATCH_DIR,"{s}.fastq"),
-           dir=SCRATCH_DIR+"/STAR_{s}/"+DIR_E,
+    input: fq=os.path.join(FQ_DIR,"{sample}.fastq"),
+           dir=os.path.join(SCRATCH_DIR,"STAR_{sample}",DIR_E),
            idx=os.path.join(SCRATCH_DIR,"Genome")
-    output: mapped=os.path.join(SCRATCH_DIR,"{s}_aligned_STAR.bam"),
-            unmapped=os.path.join(SCRATCH_DIR,"{s}_STAR_unmapped.fq")
-    message: "Aligning reads of sample {wildcards.s} to Genome with STAR"
+    output: mapped=os.path.join(SCRATCH_DIR,"{sample}_aligned_STAR.bam"),
+            unmapped=os.path.join(SCRATCH_DIR,"{sample}_STAR_unmapped.fq")
+    message: "Aligning reads of sample {wildcards.sample} to Genome with STAR"
     shell:
         """
-           {STAR_BIN} --outFileNamePrefix {SCRATCH_DIR}/STAR_{wildcards.s}/ --outStd SAM --genomeDir {SCRATCH_DIR} \
-                      --runThreadN 12 --readFilesIn {input.fq} --outSAMunmapped unmappedSTAR_{wildcards.s}.sam \
+           {STAR_BIN} --outFileNamePrefix {SCRATCH_DIR}/STAR_{wildcards.sample}/ --outStd SAM --genomeDir {SCRATCH_DIR} \
+                      --runThreadN 12 --readFilesIn {input.fq} --outSAMunmapped unmappedSTAR_{wildcards.sample}.sam \
                       --outReadsUnmapped Fastx --chimSegmentMin 18 --chimScoreMin 12 |  \
-           samtools view -bS -   | samtools sort - {SCRATCH_DIR}/{wildcards.s}_aligned_STAR
-           mv {SCRATCH_DIR}/STAR_{wildcards.s}/Unmapped.out.mate1 {output.unmapped}
+           samtools view -bS -   | samtools sort - {SCRATCH_DIR}/{wildcards.sample}_aligned_STAR
+           mv {SCRATCH_DIR}/STAR_{wildcards.sample}/Unmapped.out.mate1 {output.unmapped}
         """
 
 ########################################################################
@@ -190,6 +282,20 @@ rule gen_star_index:
         """
             {STAR_BIN} --runThreadN 12 --runMode genomeGenerate --genomeDir {SCRATCH_DIR} --genomeFastaFiles {input.fasta} --sjdbGTFfile {input.annot}  --sjdbOverhang 75 
         """
+
+rule download_genome:
+   output: {GENOME}
+   shell:
+      """
+        curl {GENOME_URL} | gunzip -c  > {output} 
+      """
+
+rule download_gtf:
+   output: {GENOME_GTF}
+   shell:
+      """
+        curl {GENOME_GTF_URL} | gunzip -c >  {output} 
+      """
 
 ########################################################################
 rule bamtofastq:
