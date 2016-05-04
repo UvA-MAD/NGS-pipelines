@@ -25,16 +25,12 @@ if not os.path.exists(param.SPIKES_REF):
    sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 SPIKES_REF=param.SPIKES_REF
 
-if not os.path.exists(param.GENOME_DB):
-   sys.exit("Pipeline configuration error: Genome database does not exist: "+param.GENOME_DB)
 GENOME_DB=param.GENOME_DB
 
 if not os.path.exists(param.TRANSCRIPTOME_DB) and DOMAIN == "eukaryote" :
    sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 TRANSCRIPTOME_DB=param.TRANSCRIPTOME_DB
 
-if not os.path.exists(param.GENOME_ANNOT) and DOMAIN == "prokaryote":
-   sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 GENOME_ANNOT=param.GENOME_ANNOT
 
 SAMPLES=param.SAMPLES 
@@ -45,11 +41,32 @@ RESULT_DIR= param.RESULT_DIR
 rule all:
     input: os.path.join(RESULT_DIR,"CountTable_transc.txt"),
            os.path.join(RESULT_DIR,"count.png"),
+           os.path.join(RESULT_DIR,"ReadCountPlot.png"),
            os.path.join(RESULT_DIR,"ReadCounts.txt"),
            os.path.join(RESULT_DIR,"CountTable_genome.txt"),
            os.path.join(RESULT_DIR,"CountTable_contigs.txt"),
            os.path.join(RESULT_DIR,"assembly100.fa")
     message: "Done running mRNA pipeline"
+
+
+rule download_genome: 
+    output: GENOME_DB
+    shell: "curl {param.GENOME_FASTA_URL} | gunzip  -c > {output}"
+    
+rule download_gen_annotation: 
+    output: GENOME_ANNOT
+    shell: "curl {param.GENOME_GFF_URL} | gunzip  -c > {output}"
+   
+
+rule readcount_plot:
+    input: os.path.join(RESULT_DIR,"ReadCounts.txt")
+    output: os.path.join(RESULT_DIR,"ReadCountPlot.png")
+    run: R("""
+             rc <- t(read.table("{input}",row.names=1,header=T)[,2:7])
+             png(file="{output}",width=480,height=640)
+             barplot(rc,legend=rownames(rc),col=rainbow(7),ylim=c(0,3e7))
+             dev.off()
+           """)
 
 ########################################################################
 rule combine_readcount:
@@ -209,24 +226,26 @@ rule genome_count_table:
           tmpfile=$(mktemp /tmp/mrnapipe.XXXXXX)
 	  if [ "{DOMAIN}"  = "prokaryote" ] ; then 
               cat {input} | grep '__no_feature\|__ambiguous\|__alignment_not_unique\|__too_low_aQual' > $tmpfile
+          else
+             cat {input} > $tmpfile
           fi
-          cat {input} > $tmpfile
           awk -v "b=100000" 'substr($1,1,1) == "@" {{ next; }} $2 == 0 {{ print $3 " - " b*int($4/b) }} $2 == 16 {{ print $3 " + " b*int($4/b)  }} ' $tmpfile | sort  -k1,2 -k3n | uniq -c > {output}
 	  rm $tmpfile
         """
  
 
 rule transcript_count_table:
-    input: os.path.join(SCRATCH_DIR,"{sample}_transc.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_genome.sam")
+    input: sam=os.path.join(SCRATCH_DIR,"{sample}_transc.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_genome.sam"),
+           annot=GENOME_ANNOT
     output: countTable=os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt"),
             samFile=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
     message: "Create count table"
     shell:
         """
 	  if [ "{DOMAIN}"  = "prokaryote" ] ; then 
-             htseq-count -a 0 -t gene -i Name -o {output.samFile} {input} {GENOME_ANNOT} | awk '{{print $2 "\\t" $1 }}' > {output.countTable}
+             htseq-count -a 0 -t gene -i Name -o {output.samFile} {input.sam} {input.annot} | head -n -5 | awk '{{print $2 "\\t" $1 }}' > {output.countTable}
 	  else
-             awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input} | sort | uniq -c > {output.countTable}
+             awk '$2 == 0 {{ print $3 }} $2 == 16 {{print $3 "_rc"}}'  {input.sam} | sort | uniq -c > {output.countTable}
              touch {output.samFile}
 	  fi 
         """
@@ -343,10 +362,12 @@ rule aln_spikes:
 rule trim_reads:
     input: os.path.join(FQ_DIR,"{sample}.fastq")
     output: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
-    message: "Trimming reads to 50 nt. And remove reads < 25nt"
+    params: minlen=param.MIN_READLEN,
+            trimlen=param.MAX_READLEN
+    message: "Trimming reads to {params.trimlen}  nt. And remove reads < {params.minlen} nt"
     shell:
        """
-         awk 'BEGIN {{tlen=50; lmin=25}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
+         awk 'BEGIN {{tlen={params.trimlen}; lmin={params.minlen}}} {{ln++; av[ln] =$0}} ln==4 {{if (length($0)>=lmin) {{ printf("%s\\n%s\\n%s\\n%s\\n", av[1],substr(av[2],1,tlen),av[3],substr($0,1,tlen)); }} ln=0; }}'  {input} > {output}
        """
 
 ########################################################################
