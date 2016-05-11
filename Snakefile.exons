@@ -37,6 +37,7 @@ RESULT_DIR = os.path.join(EXPERIMENT_DIR,"Results/exonmapping")
 DIR_E = ".dexist"
 
 STAR_BIN = "/mad/bin/STAR"
+TRIMMOMATIC_JAR = "/zfs/datastore0/software/src/Trimmomatic-0.36/trimmomatic-0.36.jar" 
 
 # directory with raw reads in fastq format
 FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
@@ -60,10 +61,9 @@ PICARD_DIR="/mad/software/src/picard-tools"
 rule all:
      input: (RESULT_DIR+"/{sample}_STAR_bowtie_RNAmetrics.txt".format(sample=s) for s in SAMPLES),
             (RESULT_DIR+"/{sample}_STAR_bowtie_alignmentSummary.txt".format(sample=s) for s in SAMPLES),
-            (RESULT_DIR+"/{sample}_STAR_bowtie_exon_count.txt".format(sample=s) for s in SAMPLES),
-            (RESULT_DIR+"/{sample}_STAR_bowtie_gen_count.txt".format(sample=s) for s in SAMPLES),
             (RESULT_DIR+"/{sample}_cufflinks/transcripts.gtf".format(sample=s) for s in SAMPLES),
             RESULT_DIR+"/GenCountTable.txt",
+            RESULT_DIR+"/ExonCountTable.txt",
             RESULT_DIR+"/DESeq2_gene_result.txt"
 #             (SCRATCH_DIR+"/{sample}_STAR_bowtie.bam".format(sample=s) for s in SAMPLES),
 #             (SCRATCH_DIR+"/{sample}_bowtie_aln_xrna.bam".format(sample=s) for s in SAMPLES),
@@ -77,7 +77,7 @@ rule deseq_analysis:
          designfile=EXP_DESIGN
   output: os.path.join(RESULT_DIR,"DESeq2_gene_result.txt")
   params: contrast_column=CONTRAST_COLUMN_NAME
-  message: "using DESeq2 to find differntally experessed genes"
+  message: "using DESeq2 to find differentially experessed genes"
   run: R("""
     require(DESeq2)
     gencounts <- read.table("{input.countfile}",sep="\\t",stringsAsFactors=T,header=T,quote="")
@@ -97,7 +97,7 @@ rule deseq_analysis:
          """)
 
 rule combined_gen_count_table:
-  input:  (RESULT_DIR+"/{sample}_STAR_bowtie_gen_count.txt".format(sample=s) for s in SAMPLES)
+  input:  (SCRATCH_DIR+"/{sample}_STAR_bowtie_gen_count.txt".format(sample=s) for s in SAMPLES)
   output: os.path.join(RESULT_DIR,"GenCountTable.txt")
   params: samples=("{sample}".format(sample=s) for s in SAMPLES)
   message: "combining per sample count tables"
@@ -116,11 +116,29 @@ rule combined_gen_count_table:
       write.table(res,"{output}",sep="\\t",quote=F,row.names=F)
          """)
 
+
+rule combined_exon_count_table:
+  input:  (SCRATCH_DIR+"/{sample}_STAR_bowtie_exon_count.txt".format(sample=s) for s in SAMPLES)
+  output: os.path.join(RESULT_DIR,"ExonCountTable.txt")
+  params: samples=("{sample}".format(sample=s) for s in SAMPLES)
+  message: "combining per sample count tables"
+  run: R("""
+      files=strsplit("{input}"," ")[[1]]
+      samples=strsplit("{params.samples}"," ")[[1]]
+      exonids = read.table(files[1],sep="\\t",stringsAsFactors=F)[,1]
+      res <- data.frame(EnsembleID=exonids,stringsAsFactors=F)
+      for (i in 1:length(samples)) {{
+          res[,samples[i]] = read.table(files[i],sep="\\t")[,2]
+      }}
+      write.table(res,"{output}",sep="\\t",quote=F,row.names=F)
+         """)
+
+
 rule gen_count_tables:
   input: os.path.join(SCRATCH_DIR,"{s}.bam")
-  output: os.path.join(RESULT_DIR,"{s}_gen_count.txt")
+  output: os.path.join(SCRATCH_DIR,"{s}_gen_count.txt")
   message: "creating count table for {wildcards.s}" 
-  shell: " samtools view -F4 {input} | htseq-count -q - {GENOME_GTF}  > {output} " 
+  shell: " samtools view -F4 {input} | htseq-count -q - {GENOME_GTF} | head -n -5 > {output} " 
 
 rule cufflinks:
    input: bam=os.path.join(SCRATCH_DIR,"{s}_STAR_bowtie.bam"),
@@ -137,12 +155,12 @@ rule cufflinks:
      """
 
 
-rule count_table: 
+rule exon_count_table: 
   input: bam=os.path.join(SCRATCH_DIR,"{s}.bam"),
          annot=GENOME_GTF
-  output: os.path.join(RESULT_DIR,"{s}_exon_count.txt")
+  output: os.path.join(SCRATCH_DIR,"{s}_exon_count.txt")
   message: "creating count table for {wildcards.s}" 
-  shell: " samtools view -F4 {input.bam} | htseq-count -q - {input.annot}  > {output} " 
+  shell: " samtools view -F4 {input.bam} | htseq-count -t exon -i exon_id -q - {input.annot} | head -n -5 > {output} " 
 
 
 rule create_rna_interval: 
@@ -257,7 +275,9 @@ rule create_bowtie_index_for_genome:
 
 ########################################################################
 rule align_with_star:
-    input: fq=os.path.join(FQ_DIR,"{sample}.fastq"),
+#  switch input to use untrimmed data. 
+#    input: fq=os.path.join(FQ_DIR,"{sample}.fastq"),
+    input: fq=os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq"),
            dir=os.path.join(SCRATCH_DIR,"STAR_{sample}",DIR_E),
            idx=os.path.join(SCRATCH_DIR,"Genome")
     output: mapped=os.path.join(SCRATCH_DIR,"{sample}_aligned_STAR.bam"),
@@ -296,6 +316,49 @@ rule download_gtf:
       """
         curl {GENOME_GTF_URL} | gunzip -c >  {output} 
       """
+
+rule read_lenplot: 
+      input:  (SCRATCH_DIR+"/{sample}_{rc}_readlencount.txt".format(sample=s,rc="{rclass}") for s in SAMPLES)
+      output: os.path.join(RESULT_DIR,"{rclass}_readlencount.png")
+      params: samples=("{sample}".format(sample=s) for s in SAMPLES)
+      run: R("""
+          files=strsplit("{input}"," ")[[1]]
+          samples=strsplit("{params.samples}"," ")[[1]]
+          cols = rainbow(length(samples))
+              png("{output}",width=1024,height=840)
+               ct <- read.table(files[1]);
+               plot(ct[,c(2,1)],t='l',xlab="read length",ylab="count",col=cols[1])
+               for (i in 2:length(files)) {{ 
+                 ct <- read.table(files[i]);
+                 lines(ct[,c(2,1)],t='l',col=cols[i])
+              }}
+              legend("topright",samples,col=cols,pch=20)
+              dev.off();
+            """)
+
+rule trim_read: 
+    input: os.path.join(FQ_DIR,"{sample}.fastq")
+    output: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
+    shell:
+       """
+          java -jar {TRIMMOMATIC_JAR} SE {input} {output}  LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:25
+       """
+
+rule trimmed_read_lendist: 
+    input: os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
+    output: os.path.join(SCRATCH_DIR,"{sample}_trimmed_readlencount.txt")
+    shell: 
+       """
+         awk 'BEGIN {{cnt=0}} {{cnt=(cnt %4) +1}} cnt==2 {{print length($0)}}'  {input} | sort -n | uniq -c  > {output} 
+       """
+
+rule read_lendist: 
+    input: os.path.join(FQ_DIR,"{sample}.fastq")
+    output: os.path.join(SCRATCH_DIR,"{sample}_raw_readlencount.txt")
+    shell: 
+       """
+         awk 'BEGIN {{cnt=0}} {{cnt=(cnt %4) +1}} cnt==2 {{print length($0)}}'  {input} | sort -n | uniq -c  > {output} 
+       """
 
 ########################################################################
 rule bamtofastq:
