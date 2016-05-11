@@ -42,15 +42,18 @@ FASTQC_OUTDIR = os.path.join(RESULT_DIR,"fastqc")
 FASTQC_OUT= [os.path.join(FASTQC_OUTDIR,s+"_fastqc","fastqc_report.html") for s in SAMPLES]
 
 
+# By default fastQC is off remove the # in the "input" line of rule "all" to do FastQC on all samples
+#  generate the fast_qc for a single sample with:  os.path.join(FASTQC_OUTDIR,"S01_fastqc","fastqc_report.html")
+
 rule all:
-    input: HTML_FILE,   FASTQC_OUT
+    input: HTML_FILE  #,FASTQC_OUT
     message: "basic QC done!"
 
 rule fast_qc:
-       input: fq=FASTQ_STORE+"/{s}.fastq",
+       input: fq=FASTQ_STORE+"{s}.fastq",
               outdir=FASTQC_OUTDIR+"/"+DIR_E
        output: FASTQC_OUTDIR+"{s}_fastqc/fastqc_report.html"
-       message: "generating fastqc files"
+       message: "Generating fastqc report for sample {wildcards.s}"
        shell: "fastqc  -o {FASTQC_OUTDIR} {input.fq}"
 
 rule bootstrap:
@@ -86,4 +89,3 @@ rule create_dir:
     output:  os.path.join("{s}",DIR_E)
     message: "Create directory {wildcards.s}"
     shell:   "mkdir -p {wildcards.s}; touch {output} "
-
