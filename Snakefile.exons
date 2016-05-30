@@ -54,6 +54,7 @@ ASSEMB_HASH = 21
 
 SEQ_COUNT_LOG="seq_count.txt"
 
+BOWTIE_PARAMS_SPIKE  = " -L 6 -i S,0,0.5 --norc --rdg 1,6 --rfg 1,6 -p 8  --score-min L,-1,-0.6 "
 BOWTIE_PARAMS="--local --very-sensitive-local -p 8 -q --mm" 
 
 PICARD_DIR="/mad/software/src/picard-tools"
@@ -277,7 +278,7 @@ rule create_bowtie_index_for_genome:
 rule align_with_star:
 #  switch input to use untrimmed data. 
 #    input: fq=os.path.join(FQ_DIR,"{sample}.fastq"),
-    input: fq=os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq"),
+    input: fq=os.path.join(SCRATCH_DIR,"{sample}_nospike.fastq"),
            dir=os.path.join(SCRATCH_DIR,"STAR_{sample}",DIR_E),
            idx=os.path.join(SCRATCH_DIR,"Genome")
     output: mapped=os.path.join(SCRATCH_DIR,"{sample}_aligned_STAR.bam"),
@@ -291,6 +292,16 @@ rule align_with_star:
            samtools view -bS -   | samtools sort - {SCRATCH_DIR}/{wildcards.sample}_aligned_STAR
            mv {SCRATCH_DIR}/STAR_{wildcards.sample}/Unmapped.out.mate1 {output.unmapped}
         """
+
+
+########################################################################
+rule align_with_spikes:
+    input:   os.path.join(SCRATCH_DIR,"{sample}_trimmed.fastq")
+    output:  mapping=os.path.join(SCRATCH_DIR,"{sample}_spike_aln.sam")
+             unmapped=os.path.join(SCRATCH_DIR,"{sample}_nospike.fastq")
+    message: "Aligning reads of sample {wildcards.sample} to spike sequences."
+    shell:   "bowtie2 {BOWTIE_PARAMS_SPIKE} -x {SPIKES_REF} -U {input} -S {output.mapping} --un {output.unmapped}"
+
 
 ########################################################################
 rule gen_star_index:
