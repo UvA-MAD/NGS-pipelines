@@ -27,8 +27,6 @@ SPIKES_REF=param.SPIKES_REF
 
 GENOME_DB=param.GENOME_DB
 
-if not os.path.exists(param.TRANSCRIPTOME_DB) and DOMAIN == "eukaryote" :
-   sys.exit("Pipeline configuration error: Transcriptome database does not exist.")
 TRANSCRIPTOME_DB=param.TRANSCRIPTOME_DB
 
 GENOME_ANNOT=param.GENOME_ANNOT
@@ -51,12 +49,22 @@ rule all:
 
 rule download_genome: 
     output: GENOME_DB
-    shell: "curl {param.GENOME_FASTA_URL} | gunzip  -c > {output}"
+    shell: "curl {param.GENOME_ZIP_FASTA_URL} | gunzip  -c > {output}"
     
 rule download_gen_annotation: 
     output: GENOME_ANNOT
-    shell: "curl {param.GENOME_GFF_URL} | gunzip  -c > {output}"
-   
+    shell: "curl {param.GENOME_ZIP_GFF_URL} | gunzip  -c > {output}"
+  
+rule download_transcriptome:
+   input: os.path.join(DB_DIR,DIR_E)
+   output:  TRANSCRIPTOME_DB
+   message: "downloading transcriptome"
+   shell:
+     """
+        curl  {param.CDNA_ZIP_FASTA_URL}  | gunzip -c -  > {output}
+        curl  {param.NCRNA_ZIP_FASTA_URL} | gunzip -c - >> {output}
+     """
+ 
 
 rule readcount_plot:
     input: os.path.join(RESULT_DIR,"ReadCounts.txt")
