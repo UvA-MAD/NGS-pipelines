@@ -47,14 +47,17 @@ rule all:
     message: "Done running mRNA pipeline"
 
 
+########################################################################
 rule download_genome: 
     output: GENOME_DB
     shell: "curl {param.GENOME_ZIP_FASTA_URL} | gunzip  -c > {output}"
     
+########################################################################
 rule download_gen_annotation: 
     output: GENOME_ANNOT
     shell: "curl {param.GENOME_ZIP_GFF_URL} | gunzip  -c > {output}"
   
+########################################################################
 rule download_transcriptome:
    input: os.path.join(DB_DIR,DIR_E)
    output:  TRANSCRIPTOME_DB
@@ -64,8 +67,8 @@ rule download_transcriptome:
         curl  {param.CDNA_ZIP_FASTA_URL}  | gunzip -c -  > {output}
         curl  {param.NCRNA_ZIP_FASTA_URL} | gunzip -c - >> {output}
      """
- 
 
+########################################################################
 rule readcount_plot:
     input: os.path.join(RESULT_DIR,"ReadCounts.txt")
     output: os.path.join(RESULT_DIR,"ReadCountPlot.png")
@@ -225,6 +228,7 @@ rule read_distribution_count:
           echo    "$rc_ncontigs"                   >> {output}
         """
 
+########################################################################
 rule genome_count_table:
     input: os.path.join(SCRATCH_DIR,"{sample}_genome.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
     output: os.path.join(RESULT_DIR,"{sample}_genome_cnt.txt")
@@ -242,9 +246,11 @@ rule genome_count_table:
         """
  
 
+########################################################################
+# No annotation  is needed so annot is set to a file which will be there for sure
 rule transcript_count_table:
     input: sam=os.path.join(SCRATCH_DIR,"{sample}_transc.sam") if (DOMAIN=="eukaryote") else os.path.join(SCRATCH_DIR,"{sample}_genome.sam"),
-           annot=GENOME_ANNOT
+           annot=GENOME_ANNOT if (DOMAIN=="prokaryote")  else "/bin/ls"
     output: countTable=os.path.join(RESULT_DIR,"{sample}_transc_cnt.txt"),
             samFile=os.path.join(SCRATCH_DIR,"{sample}_readsTagged.sam")
     message: "Create count table"
