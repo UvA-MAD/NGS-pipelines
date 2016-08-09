@@ -71,6 +71,7 @@ rule knit:
     output: md=MD_FILE
     message: "Knitting report"
     run: R("""
+            options(useHTTPS=FALSE)
             library(knitr);
             figpath <- "{KNIT_FIGDIR}"
             fq.path <- "{FASTQ_STORE}"
