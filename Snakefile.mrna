@@ -9,7 +9,9 @@ SCRATCH_DIR=param.SCRATCH_DIR
 ASSEMB_DIR = os.path.join(SCRATCH_DIR,"UnmappAssemb21")
 ASSEMB_HASH = 21
 
-TMAP_PARAMS = "-M 2 -O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3"
+
+#scrict mapping : -M 2  flag removed 
+TMAP_PARAMS = "-O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3"
 
 domains = ("prokaryote","eukaryote")
 
@@ -59,7 +61,7 @@ rule download_gen_annotation:
   
 ########################################################################
 rule download_transcriptome:
-   input: os.path.join(DB_DIR,DIR_E)
+   input: os.path.join(SCRATCH_DIR,DIR_E)
    output:  TRANSCRIPTOME_DB
    message: "downloading transcriptome"
    shell:
@@ -73,9 +75,12 @@ rule readcount_plot:
     input: os.path.join(RESULT_DIR,"ReadCounts.txt")
     output: os.path.join(RESULT_DIR,"ReadCountPlot.png")
     run: R("""
-             rc <- t(read.table("{input}",row.names=1,header=T)[,2:7])
+             infile <- "{input}"
+             rc <- t(read.table(infile,row.names=1,header=T)[,2:7])
+             mv = max(read.table(infile,header=T)$total)
+             rc <- rc[,order(colnames(rc))]
              png(file="{output}",width=480,height=640)
-             barplot(rc,legend=rownames(rc),col=rainbow(7),ylim=c(0,3e7))
+             barplot(rc,legend=rownames(rc),col=rainbow(7),ylim=c(0,1.3*mv),las=2)
              dev.off()
            """)
 
