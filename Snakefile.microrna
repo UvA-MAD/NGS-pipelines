@@ -25,7 +25,7 @@ EXPERIMENT_DIR = "../.."
 
 # Location of the input files and sample names 
 FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
-SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 # reference spike in sequences for small RNA experiments
 SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/SSPK_v3"

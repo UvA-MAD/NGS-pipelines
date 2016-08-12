@@ -17,7 +17,7 @@ RESULT_DIR = os.path.join(EXPERIMENT_DIR,"Results/mrna_map")
 FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
 
 # samples to be processed if unchanged: all files with fastq extention in FQ_DIR
-SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 
 #####################################################################

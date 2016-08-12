@@ -43,7 +43,7 @@ TRIMMOMATIC_JAR = "/zfs/datastore0/software/src/Trimmomatic-0.36/trimmomatic-0.3
 
 # directory with raw reads in fastq format
 FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
-SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 #File with experimental design. The design file used for basic QC can be reused
 EXP_DESIGN="seqdesign.txt"

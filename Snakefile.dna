@@ -29,7 +29,7 @@ GENOME_DB="/zfs/datastore0/group_root/MAD-RBAB/05_Reference-db/external/dre/DNA/
 
 
 FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
-SAMPLES =  [s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")]
+SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 
 
