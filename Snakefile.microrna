@@ -319,9 +319,9 @@ rule create_bowtie_index:
 # Align reads to spikes 
 rule aln_spikes:
     input:   fq= os.path.join(FQ_DIR,"{sample}.fastq"),
-             d1=os.path.join(SPIKE_DIR,DIR_E)
+             d1=os.path.join(SPIKE_DIR,DIR_E),
              d2=os.path.join(NOSPIKE_DIR,DIR_E)
-    output:  mapping=os.path.join(SPIKE_DIR,"{sample}_spike_aln.sam")
+    output:  mapping=os.path.join(SPIKE_DIR,"{sample}_spike_aln.sam"),
              unmapped=os.path.join(NOSPIKE_DIR,"{sample}.fastq")
     message: "Aligning reads to spike sequences."
     shell:   "bowtie2 {BOWTIE_PARAMS_SPIKE} -x {SPIKES_REF} -U {input.fq} -S {output.mapping} --un {output.unmapped}" 
