@@ -45,7 +45,8 @@ rule all:
            os.path.join(RESULT_DIR,"ReadCounts.txt"),
            os.path.join(RESULT_DIR,"CountTable_genome.txt"),
            os.path.join(RESULT_DIR,"CountTable_contigs.txt"),
-           os.path.join(RESULT_DIR,"assembly100.fa")
+           os.path.join(RESULT_DIR,"assembly100.fa"),
+           (RESULT_DIR+"/{sample}_merged.bam".format(sample=s) for s in SAMPLES)
     message: "Done running mRNA pipeline"
 
 
@@ -353,6 +354,23 @@ rule total_reads_count:
              echo "$SAMPLE\t$CNT" >> {output}
           done
         """
+
+
+########################################################################
+rule extract_mapped_only: 
+     input: "{sample}.sam"
+     output: "{sample}_mapped.sam"
+     shell: "samtools view -h -F 4 {input} > {output} " 
+     
+########################################################################
+rule combine2bam:
+      input: sp=os.path.join(SCRATCH_DIR,"{sample}_spike_mapped.sam"),
+             tr=os.path.join(SCRATCH_DIR,"{sample}_transc_mapped.sam"),
+             gn=os.path.join(SCRATCH_DIR,"{sample}_genome_mapped.sam"), 
+             ct=os.path.join(SCRATCH_DIR,"{sample}_contigs.sam") 
+      output: os.path.join(RESULT_DIR,"{sample}_merged.bam")
+      shell: "samtools merge  {output} {input.sp} {input.tr} {input.gn} {input.ct} "
+
 
 ########################################################################
 rule sam2bam:
