@@ -273,28 +273,20 @@ rule spike_count:
       """
 
 
-########################################################################
-rule get_mirbase:
-      output: miRNAfasta,
-              miRNAgff
-      message: "Downloading from MirBase"
-      shell: "./DownloadMirbase.sh {SPECIES} {MIRBASE_VERSION} {MIRNADB_DIR}"
 
 ########################################################################
-#  Matlab script to create miRNA databases for mapping
+#  script to create miRNA databases for mapping
 rule make_mirnadb:
-      input: fasta=miRNAfasta,
-             gff=miRNAgff,
-             d1=os.path.join(MIRNADB_DIR,DIR_E)
+      input: d1=os.path.join(MIRNADB_DIR,DIR_E)
       output: os.path.join(MIRNADB_DIR,"smallderived.fa"),
               os.path.join(MIRNADB_DIR,"mature.fa"),
               os.path.join(MIRNADB_DIR,"matureputative.fa"),
               os.path.join(MIRNADB_DIR,"premature.fa")
       message: "Create databases for mature premature putative classes of miRNA" 
-      shell: 
-        """ 
-          echo "makeMicroRNAdb('{input.fasta}','{input.gff}','{MIRNADB_DIR}')"  | matlab -nodisplay -nojvm
-        """ 
+      run: R("""
+               source("makeMicroRNAdb.R") 
+               ProcessMirBaseData({SPECIES},{MIRBASE_VERSION},{MIRNADB_DIR})
+             """)
 
 
 ########################################################################
