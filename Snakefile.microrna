@@ -66,21 +66,21 @@ rule all:
        os.path.join(RESULTS_DIR,"CountTable_norm_spike.txt"),
        os.path.join(RESULTS_DIR,"norm_count.png"),
        os.path.join(RESULTS_DIR,"FractionCounts.txt"),
-       os.path.join(RESULTS_DIR,"total_reads.csv"),
+       os.path.join(RESULTS_DIR,"total_reads.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt"),
-       os.path.join(RESULTS_DIR,"isomiRs.csv"),
-       os.path.join(RESULTS_DIR,"isomiR_counttable.csv")
+       os.path.join(RESULTS_DIR,"isomiRs.txt"),
+       os.path.join(RESULTS_DIR,"isomiR_counttable.txt")
     message: "All requested output files ready." 
 
 
 ########################################################################
 rule create_isomiR_count_table:
-   input:  isomiRs=os.path.join(RESULTS_DIR,"isomiRs.csv"),
+   input:  isomiRs=os.path.join(RESULTS_DIR,"isomiRs.txt"),
            matureseqs=os.path.join(MIRNADB_DIR,"allmature.fa"),
-           mapfiles=("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
-   output:  os.path.join(RESULTS_DIR,"isomiR_counttable.csv")
+           mapfiles=("{spath}/{sm}_mapped_medium.txt".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
+   output:  os.path.join(RESULTS_DIR,"isomiR_counttable.txt")
    message: "Compiling count table for isomiRs"
    run: R("""
         require(Biostrings)
@@ -99,7 +99,7 @@ rule create_isomiR_count_table:
           st$one=1
           a <- aggregate(one~id,st,sum)
           rownames(a) <- a$id
-          samplename=gsub("/","",gsub("_mapped_medium.csv","",gsub("{MAP_DIR}","",sample)));
+          samplename=gsub("/","",gsub("_mapped_medium.txt","",gsub("{MAP_DIR}","",sample)));
           result[,samplename]  <- a[rownames(result),"one"]
           result[is.na(result[,samplename]),samplename] <- 0
         }}
@@ -108,8 +108,8 @@ rule create_isomiR_count_table:
 
 ########################################################################
 rule create_isomiR_table:
-   input:   ("{spath}/{sm}_mapped_medium.csv".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
-   output:  os.path.join(RESULTS_DIR,"isomiRs.csv")
+   input:   ("{spath}/{sm}_mapped_medium.txt".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
+   output:  os.path.join(RESULTS_DIR,"isomiRs.txt")
    params:   mincount=str(len(SAMPLES)*10)
    message: "Create table of mature isomiRs occuring at least {params.mincount} times."
    shell: """
@@ -119,7 +119,7 @@ rule create_isomiR_table:
 ########################################################################
 rule extract_mapped_isomiRs:
    input:   os.path.join(MAP_DIR,"{s}_medium2allmature.sam")
-   output:  os.path.join(MAP_DIR,"{s}_mapped_medium.csv")
+   output:  os.path.join(MAP_DIR,"{s}_mapped_medium.txt")
    message: "extracting info from sam file"
    shell: """
               awk 'NF > 10 && $2 != 4 {{print $3 "\\t" $10}}'  {input} > {output}
@@ -231,7 +231,7 @@ rule count_fractions:
 
 ########################################################################
 rule spike_count_plots:
-    input: totalcount=os.path.join(RESULTS_DIR, "total_reads.csv"),
+    input: totalcount=os.path.join(RESULTS_DIR, "total_reads.txt"),
            spikecount=os.path.join(RESULTS_DIR,"CountTable_size_spike.txt")
     output: countpng=os.path.join(RESULTS_DIR,"count.png"),
             normcountpng=os.path.join(RESULTS_DIR,"norm_count.png")
@@ -250,7 +250,7 @@ rule spike_count_plots:
 # calculate amount of reads per sample for spike normalise plots
 rule total_reads_count:
    input: os.path.join(RESULTS_DIR,"CountTable_size_spike.txt")
-   output: os.path.join(RESULTS_DIR, "total_reads.csv") 
+   output: os.path.join(RESULTS_DIR, "total_reads.txt") 
    message: "Count number of reads in each sample using wc"
    shell: 
        """ 
