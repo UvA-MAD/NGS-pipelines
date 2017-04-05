@@ -212,10 +212,10 @@ ProcessMirBaseData <- function(mir.version,db.dir,orgs)
    }
 }
 
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 3) {
-        print(args)
-	stop("make MicroRNADB needs at least 3 args 1.mir.version 2. location to store result 3.... species  ")
-}
+#args <- commandArgs(trailingOnly = TRUE)
+#if (length(args) < 3) {
+#        print(args)
+#	stop("make MicroRNADB needs at least 3 args 1.mir.version 2. location to store result 3.... species  ")
+#}
 
-ProcessMirBaseData(as.numeric(args[1]),args[2],args[3:length(args)])
+#ProcessMirBaseData(as.numeric(args[1]),args[2],args[3:length(args)])

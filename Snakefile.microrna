@@ -285,7 +285,7 @@ rule make_mirnadb:
       message: "Create databases for mature premature putative classes of miRNA" 
       run: R("""
                source("makeMicroRNAdb.R") 
-               ProcessMirBaseData({MIRBASE_VERSION},{MIRNADB_DIR},{SPECIES})
+               ProcessMirBaseData({MIRBASE_VERSION},"{MIRNADB_DIR}","{SPECIES}")
              """)
 
 
