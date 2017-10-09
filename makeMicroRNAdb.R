@@ -70,7 +70,7 @@ GetMature <- function(id,part,part.start,part.end,precursor.start,sin,mattab,pre
               if (pd=="+") {
                   substr(s,prec.loc.p(st),prec.loc.p(ed))
               } else {
-                  substr(s,prec.loc.n(st),prec.loc.n(ed)) 
+                  substr(s,prec.loc.n(ed),prec.loc.n(st)) 
               } 
 	 
          } 
