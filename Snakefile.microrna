@@ -12,7 +12,7 @@ from snakemake.utils import R
 ########################################################################
 
 # 3 letter code used to 
-SPECIES="xxx"
+SPECIES="hsa"
 
 if SPECIES == "xxx":
      sys.exit("Pipeline configuration error: SPECIES variable must be set.")
@@ -28,7 +28,7 @@ FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
 SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 # reference spike in sequences for small RNA experiments
-SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/SSPK_v3"
+SPIKES_REF = "/mad/MAD-RBAB/05_Reference-db/RBAB/spikes-smallRNAseq/NSPK_SSPK"
 
 DIR_E = ".dexist"
 
@@ -84,7 +84,7 @@ rule create_isomiR_count_table:
    message: "Compiling count table for isomiRs"
    run: R("""
         require(Biostrings)
-        fa <- as.character(readDNAStringSet("{input.matureseqs}"));
+        fa <- as.character(readRNAStringSet("{input.matureseqs}"));
         mats <- grep("putative",names(fa),invert=T)
         fa[mats] <- substr(fa[mats],4,nchar(fa[mats])-3)
         isomers <- read.table("{input.isomiRs}",stringsAsFactors=F,header=F)
@@ -165,8 +165,7 @@ rule sam2bam:
     message: "Converting {wildcards.sample} to sorted and indexed bam"
     shell:
       """
-        samtools view -bS {input} > {output.bam}
-        samtools sort {output.bam} {wildcards.sample}_sorted
+        samtools sort {input} -O BAM -o {output.bam}
         samtools index {output.bam}
       """
 
@@ -312,7 +311,8 @@ rule create_bowtie_index:
 rule aln_spikes:
     input:   fq= os.path.join(FQ_DIR,"{sample}.fastq"),
              d1=os.path.join(SPIKE_DIR,DIR_E),
-             d2=os.path.join(NOSPIKE_DIR,DIR_E)
+             d2=os.path.join(NOSPIKE_DIR,DIR_E),
+             refidx=SPIKES_REF+".1.bt2"
     output:  mapping=os.path.join(SPIKE_DIR,"{sample}_spike_aln.sam"),
              unmapped=os.path.join(NOSPIKE_DIR,"{sample}.fastq")
     message: "Aligning reads to spike sequences."
