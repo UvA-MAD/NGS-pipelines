@@ -60,24 +60,34 @@ GetSmallDerived <-function(seq,id,part,dir)
     return=c(smd1,smd2)
 }
 
-GetMature <- function(id,part,part.start,part.end,precursor.start,sin,mattab,dir,mat.flank=3,n.flank)
-{
-         prec.loc<-function (x,ps=precursor.start) { x-ps+1 } 
 
+GetMature <- function(id,part,part.start,part.end,precursor.start,sin,mattab,precursor.dir,mat.flank=3,n.flank)
+{
+         prec.loc.p<-function (x,ps=precursor.start) { x-ps+1 } 
+         prec.loc.n<-function (x,ps=precursor.start+nchar(sin)) { ps-x }
+
+         getsubseq <-function(s,st,ed,ps=precursor.start,pd=precursor.dir) {
+              if (pd=="+") {
+                  substr(s,prec.loc.p(st),prec.loc.p(ed))
+              } else {
+                  substr(s,prec.loc.n(st),prec.loc.n(ed)) 
+              } 
+	 
+         } 
          m = mattab[mattab$derives.from == id & mattab$start >= part.start & mattab$end <= part.end,]
          if (nrow(m) > 0) {
                  for (cnt in 1:nrow(m) ) { 
-                      plmseq=paste(paste(rep("N",n.flank),collapse=""),substr(sin,prec.loc(m[cnt,"start"]-mat.flank),prec.loc(m[cnt,"end"]+mat.flank)),paste(rep("N",n.flank),collapse=""),sep="")
+                      plmseq=paste(paste(rep("N",n.flank),collapse=""),getsubseq(sin,m[cnt,"start"]-mat.flank,m[cnt,"end"]+mat.flank),paste(rep("N",n.flank),collapse=""),sep="")
                       
                       names(plmseq) = paste("mature:",m[cnt,"ID"],":",part,":",id,sep="");
                       if (grepl("-[35]p$",m[cnt,"Name"])  & (part != substring.last(m[cnt,"Name"],2)))  {
                                cat("WARNING!: part disagreement for ",m$Name,"/",m$ID," in ",id,"\n");
                       } 
                       if (cnt==1) { lmseq=plmseq; } else { lmseq=c(lmseq,plmseq); }
-                      lmseq=c(lmseq,GetSmallDerived(substr(sin,prec.loc(m[cnt,"start"]),prec.loc(m[cnt,"end"])),id,part,dir))
+                      lmseq=c(lmseq,GetSmallDerived(getsubseq(sin,m[cnt,"start"],m[cnt,"end"]),id,part,precursor.dir))
                  }
          } else {
-                 lmseq=substr(sin,prec.loc(part.start),prec.loc(part.end))
+                 lmseq=getsubseq(sin,part.start,part.end)
                  names(lmseq) = paste("putativemature:",id,":",part,sep="")
          } 
          lmseq
