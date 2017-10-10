@@ -14,7 +14,6 @@ ReadMirBaseGff3<- function(org,mir.version,db.dir="../../Scratch/")
      if (!file.exists(annotation.file)) {
         cat("Try download ",paste(MirBaseFTP(mir.version),"genomes/",org,".gff3",sep=""),"\n")
          fgff <- try(read.table(paste(MirBaseFTP(mir.version),"genomes/",org,".gff3",sep="")),silent=T)
-         cat(class(fgff),"is the class","\n")
          if (class(fgff) == "data.frame") {
               write.table(fgff,annotation.file,quote=F,sep="\t",row.names=F,col.names=F);
 	 } 
@@ -207,6 +206,10 @@ ProcessMirBaseData <- function(mir.version,db.dir,orgs)
       } 
 
 #Assumptions have been checked. Now start the real work. 
+#First replace U with T to prevent problems downstream. Some 
+#tools don't like Uracil (U) in fasta and for our purposes 
+#a T is equivalent. 
+      mir.sequences <- gsub("U","T",mir.sequences)
 #All sequences in mirbase which refer the organism 
 #are written as precursors even if the annotation does not mention them
       WritePrematures(mir.sequences,of.prematures)
