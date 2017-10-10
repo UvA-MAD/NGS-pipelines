@@ -52,7 +52,7 @@ REFERENCE_PREMATURE    = os.path.join(MIRNADB_DIR,"premature")
 
 BOWTIE_PARAMS_SHR    = " -L 6 -i S,0,0.5 --norc  --rdg 1,6 --rfg 1,6 -p 8 "
 BOWTIE_PARAMS_SPIKE  = BOWTIE_PARAMS_SHR + " --score-min L,-1,-0.6 "  
-BOWTIE_PARAMS_MIRNA  = BOWTIE_PARAMS_SHR + " --score-min L,-0.0,-0.8 "
+BOWTIE_PARAMS_MIRNA  = BOWTIE_PARAMS_SHR + " --score-min L,0,-0.6 "
 
 
 ########################################################################
@@ -84,7 +84,7 @@ rule create_isomiR_count_table:
    message: "Compiling count table for isomiRs"
    run: R("""
         require(Biostrings)
-        fa <- as.character(readRNAStringSet("{input.matureseqs}"));
+        fa <- as.character(readDNAStringSet("{input.matureseqs}"));
         mats <- grep("putative",names(fa),invert=T)
         fa[mats] <- substr(fa[mats],4,nchar(fa[mats])-3)
         isomers <- read.table("{input.isomiRs}",stringsAsFactors=F,header=F)
@@ -110,7 +110,7 @@ rule create_isomiR_count_table:
 rule create_isomiR_table:
    input:   ("{spath}/{sm}_mapped_medium.txt".format(sm= s,spath=MAP_DIR) for s in SAMPLES)
    output:  os.path.join(RESULTS_DIR,"isomiRs.txt")
-   params:   mincount=str(len(SAMPLES)*10)
+   params:   mincount=str(len(SAMPLES))
    message: "Create table of mature isomiRs occuring at least {params.mincount} times."
    shell: """
         cat {input} |  sort | uniq -c  | awk '$1 > {params.mincount} {{print $0}}' > {output}
