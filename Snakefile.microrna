@@ -60,12 +60,9 @@ BOWTIE_PARAMS_MIRNA  = BOWTIE_PARAMS_SHR + " --score-min L,0,-0.6 "
 ########################################################################
 rule all:
     input: 
-       ("{spath}/{sample}_small2smallderived_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
-       ("{spath}/{sample}_large2premature_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
-       ("{spath}/{sample}_medium2allmature_counts.txt".format(sample=s,spath=RESULTS_DIR) for s in SAMPLES),
        os.path.join(RESULTS_DIR,"CountTable_norm_spike.txt"),
        os.path.join(RESULTS_DIR,"norm_count.png"),
-       os.path.join(RESULTS_DIR,"FractionCounts.txt"),
+       os.path.join(RESULTS_DIR,"FractionCountsPlot.png"),
        os.path.join(RESULTS_DIR,"total_reads.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
        os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
@@ -125,23 +122,28 @@ rule extract_mapped_isomiRs:
               awk 'NF > 10 && $2 != 4 {{print $3 "\\t" $10}}'  {input} > {output}
           """
 
+
 ########################################################################
-rule compile_counts:
-  input:  
-     large  = ("{spath}/{sample}_large2premature_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES),
-     medium = ("{spath}/{sample}_medium2allmature_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES),
-     small  = ("{spath}/{sample}_small2smallderived_counts.txt".format(sample=s,spath=MAP_DIR) for s in SAMPLES)
-  output: 
-     small  = os.path.join(RESULTS_DIR,"compiledCounts_small2smallderived_cnt.txt"),
-     medium = os.path.join(RESULTS_DIR,"compiledCounts_medium2allmature_cnt.txt"),
-     large  = os.path.join(RESULTS_DIR,"compiledCounts_large2premature_cnt.txt")
-  message: "Combine count tables for samples into single table"
+rule compile_idx_stats:
+  input: expand(os.path.join(MAP_DIR,"{sample}_{{rnaclass}}_counts.txt"),sample=SAMPLES)
+  output: os.path.join(RESULTS_DIR,"compiledCounts_{rnaclass}_cnt.txt")
+  params: samples=' '.join(SAMPLES)
+  message: "Combine {wildcards.rnaclass} count tables for samples into single table using samtools idxstats results"
   run: R("""
-         require(faradr);
-         CombineCountTables("{MAP_DIR}", "{output.small}" , "_small2smallderived_counts.txt");
-         CombineCountTables("{MAP_DIR}", "{output.medium}", "_medium2allmature_counts.txt");
-         CombineCountTables("{MAP_DIR}", "{output.large}" , "_large2premature_counts.txt");
-         """)    
+	  listOfFiles=strsplit("{input}"," ")[[1]]
+	  sampleNames=strsplit("{params.samples}"," ")[[1]]
+	  compileExper <- read.delim(listOfFiles[1],header=FALSE)[,c(1,3)] 
+	  colnames(compileExper) <- c("ID", sampleNames[1])
+          compileExper <- compileExper[compileExper$ID != "*",]
+	  for (i in 2:length(listOfFiles)) {{
+	    df <- read.delim(listOfFiles[i],header=FALSE)[,c(1,3)];
+	    colnames(df) <- c("ID", sampleNames[i])
+            df <- df[df$ID != "*",]
+	    compileExper <- merge(compileExper, df, by = "ID")
+	  }}
+	  write.table(compileExper, file = "{output}", sep = "\t", row.names = F,quote=F)
+	""")    
+
 
 ########################################################################
 rule copy_mapping_counts_to_results: 
@@ -227,6 +229,17 @@ rule count_fractions:
                echo "$i\t$VSM_CNT\t$SML_CNT\t$MED_CNT\t$LRG_CNT\t$ALL_CNT" >> {output} 
            done  
         """ 
+
+
+rule plot_fractions:
+   input:  os.path.join(RESULTS_DIR,"FractionCounts.txt")
+   output:  os.path.join(RESULTS_DIR,"FractionCountsPlot.png")
+   run: R("""
+             rc <- t(read.table("{input}",row.names=1,header=T))[1:4,]
+             png("{output}",width=1024,height=840);
+             barplot(rc,legend=rownames(rc),col=rainbow(7),las=2)
+             dev.off();
+          """)
 
 ########################################################################
 rule spike_count_plots:
