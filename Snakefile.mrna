@@ -8,10 +8,11 @@ DIR_E = ".dexist"
 SCRATCH_DIR=param.SCRATCH_DIR
 ASSEMB_DIR = os.path.join(SCRATCH_DIR,"UnmappAssemb21")
 ASSEMB_HASH = 21
+THREADS_PER_JOB = 8
 
 
 #scrict mapping : -M 2  flag removed 
-TMAP_PARAMS = "-O 3 -n 16 -g 3 -a 1 -v stage1 map1 map2 map3"
+TMAP_PARAMS = "-O 3 -n {THREADS_PER_JOB}  -g 3 -a 1 -v stage1 map1 map2 map3"
 
 domains = ("prokaryote","eukaryote")
 
@@ -373,15 +374,14 @@ rule combine2bam:
 
 
 ########################################################################
-rule sam2bam:
+rule sam2sortedbam:
     input:  "{sample}.sam"
     output: bam = "{sample}_sorted.bam",
             bai = "{sample}_sorted.bam.bai",
     message: "Converting {wildcards.sample} to sorted and indexed bam"
     shell:
         """
-          samtools view -bS {input} > {output.bam}
-          samtools sort {output.bam} {wildcards.sample}_sorted
+          samtools sort -@ {THREADS_PER_JOB} {input} > {output.bam}
           samtools index {output.bam}
         """
 

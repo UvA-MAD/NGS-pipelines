@@ -237,8 +237,7 @@ rule aln_to_xrna_with_bowtie:
     output:  map=os.path.join(SCRATCH_DIR,"{sample}_bowtie_aln_xrna.bam"),
              unmapped=os.path.join(SCRATCH_DIR,"{sample}_bowtie_unmapped_xrna.fq"),
     message: "Aligning reads of sample {wildcards.sample} with bowtie2 to rRNA"
-    shell:   "bowtie2 {BOWTIE_PARAMS} -x {SCRATCH_DIR}/xrna -U {input.fq} --un {output.unmapped} | \
-              samtools view -bS - | samtools sort - {SCRATCH_DIR}/{wildcards.sample}_bowtie_aln_xrna"
+    shell:   "bowtie2 {BOWTIE_PARAMS} -x {SCRATCH_DIR}/xrna -U {input.fq} --un {output.unmapped} | samtools  sort - > {output.map}"
 
 ########################################################################
 rule aln_to_genome_with_bowtie:
@@ -247,8 +246,7 @@ rule aln_to_genome_with_bowtie:
     output:  map=os.path.join(SCRATCH_DIR,"{sample}_bowtie_aln_genome.bam"),
              unmapped=os.path.join(SCRATCH_DIR,"{sample}_bowtie_unmapped_genome.fq"),
     message: "Aligning reads of sample {wildcards.sample} with bowtie2 to genome"
-    shell:   "bowtie2 {BOWTIE_PARAMS} -x {SCRATCH_DIR}/genome -U {input.fq} --un {output.unmapped} |\
-              samtools view -bS - | samtools sort -  {SCRATCH_DIR}/{wildcards.sample}_bowtie_aln_genome"
+    shell:   "bowtie2 {BOWTIE_PARAMS} -x {SCRATCH_DIR}/genome -U {input.fq} --un {output.unmapped} | samtools sort - > {output.map}"
 
 
 ########################################################################
@@ -290,8 +288,7 @@ rule align_with_star:
         """
            {STAR_BIN} --outFileNamePrefix {SCRATCH_DIR}/STAR_{wildcards.sample}/ --outStd SAM --genomeDir {SCRATCH_DIR} \
                       --runThreadN 12 --readFilesIn {input.fq} --outSAMunmapped unmappedSTAR_{wildcards.sample}.sam \
-                      --outReadsUnmapped Fastx --chimSegmentMin 18 --chimScoreMin 12 |  \
-           samtools view -bS -   | samtools sort - {SCRATCH_DIR}/{wildcards.sample}_aligned_STAR
+                      --outReadsUnmapped Fastx --chimSegmentMin 18 --chimScoreMin 12 |  samtools sort - > {output.mapped}
            mv {SCRATCH_DIR}/STAR_{wildcards.sample}/Unmapped.out.mate1 {output.unmapped}
         """
 

@@ -32,7 +32,6 @@ FQ_DIR = os.path.join(EXPERIMENT_DIR,"Scratch/raw")
 SAMPLES =  sorted([s[:-6] for s in os.listdir(FQ_DIR) if s.endswith(".fastq")])
 
 
-
 rule all: 
      input:  os.path.join(RESULT_DIR,"Stats.txt"),
              (SCRATCH_DIR+"/{sample}_unmapped.fastq".format(sample=s) for s in SAMPLES)
@@ -82,8 +81,7 @@ rule sam2sortedbam:
     message: "Converting {wildcards.sample} to sorted and indexed bam"
     shell:
       """
-	samtools view -bS {input} > {output.bam}
-        samtools sort -@ 20 - m 20 G {output.bam} {wildcards.sample}_sorted
+        samtools sort -@ 10 -m 20G {input} > {output.bam}
         samtools index {output.bam}
       """
 
