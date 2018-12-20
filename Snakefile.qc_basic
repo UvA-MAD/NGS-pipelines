@@ -84,7 +84,7 @@ rule get_fq:
     input: DESIGN_FILE
     output: FASTQS
     message: "Importing fastq from bam"
-    shell: "python get_experiment_fq.py -d {DESIGN_FILE} -s {RUN_STORE} -a {FASTQ_STORE} -n 1"
+    shell: "python get_experiment_fq.py -d {DESIGN_FILE} -a {FASTQ_STORE}"
 
 rule create_dir:
     output:  os.path.join("{s}",DIR_E)
