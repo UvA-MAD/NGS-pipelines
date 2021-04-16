@@ -6,7 +6,7 @@ import os
 import sys
 
 
-proton_run_store   = "/mad/MAD-RBAB/04_MAD-RBAB-runs/data"
+proton_run_store   = "/zfs/genseq/rundata/data"
 illumina_run_store = "/mad/MAD-RBAB/04_MAD-RBAB-runs/illumina/data"
 
 def illumina_gather_sample(sample_info):
