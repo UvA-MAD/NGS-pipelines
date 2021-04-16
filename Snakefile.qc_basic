@@ -1,8 +1,7 @@
 # Snakefile for basicQC NGS 
 import pandas as pd
-from snakemake.utils import R
 
-DESIGN_FILE = "seqdesign.txt"
+DESIGN_FILE = "../../ExperimentInfo/SampleInformation/seqdesign.txt"
 
 PROJECT_DIR  = "../.."
 RESULT_DIR   = os.path.join(PROJECT_DIR,"Results/basicQC")
@@ -13,6 +12,7 @@ KNIT_BASE = "basicQC"
 RMD_FILE = KNIT_BASE + ".Rmd"
 MD_FILE = os.path.join(RESULT_DIR,KNIT_BASE + ".md")
 HTML_FILE = os.path.join(RESULT_DIR,KNIT_BASE + ".html")
+
 KNIT_FIGDIR = os.path.join(RESULT_DIR,"figure")
 DIR_E = ".dexist"
 
@@ -60,25 +60,31 @@ rule bootstrap:
     input: MD_FILE
     output: HTML_FILE
     message: "Bootstraping report"
-    run: R("""
-            library(knitrBootstrap);
-            knit_bootstrap_md("{input}")
-           """)
+    script: "bootstrap.R"
+#    run: R("""
+#            library(knitrBootstrap);
+#            knit_bootstrap_md("{input}")
+#           """)
 
 rule knit:
-    input: FASTQS,
-           imgdir=os.path.join(KNIT_FIGDIR,DIR_E)
+    input: fqs=FASTQS,
+           design_file=DESIGN_FILE
     output: md=MD_FILE
+    params: knit_figdir=KNIT_FIGDIR,
+            fastq_store=FASTQ_STORE,
+            result_dir=RESULT_DIR,
+            rmd_file=RMD_FILE
     message: "Knitting report"
-    run: R("""
-            options(useHTTPS=FALSE)
-            library(knitr);
-            figpath <- "{KNIT_FIGDIR}"
-            fq.path <- "{FASTQ_STORE}"
-            design.file <- "{DESIGN_FILE}"
-            opts_knit$set(base.dir = "{RESULT_DIR}")
-            knit("{RMD_FILE}", output = "{output.md}",quiet=TRUE)
-           """)
+    script: "knit.R"  
+#    run: R("""
+#            options(useHTTPS=FALSE)
+#            library(knitr);
+#            figpath <- "{KNIT_FIGDIR}"
+#            fq.path <- "{FASTQ_STORE}"
+#            design.file <- "{DESIGN_FILE}"
+#            opts_knit$set(base.dir = "{RESULT_DIR}")
+#            knit("{RMD_FILE}", output = "{output.md}",quiet=TRUE)
+#           """)
 
 rule get_fq:
     input: DESIGN_FILE
